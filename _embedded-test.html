@@ -240,6 +240,56 @@
 </style>
 </head>
 <body>
+<script>
+(function(){
+  var PIN = "3051";
+  var KEY = "__fakeServer";   // 앱의 저장소와 분리 = 학생 기기를 바꿔도 서버 자료는 유지
+  function load(){
+    try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch(e){ return null; }
+  }
+  var store = load() || { config:null, subs:[], assign:{}, files:[] };
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(store)); } catch(e){} }
+  function handle(req){
+    var a = req.action;
+    if (a === "public") return { ok:true, config: store.config, webAppUrl:"https://script.google.com/macros/s/EXAMPLE/exec" };
+    if (a === "check")  return { ok:true, submitted: store.subs.some(function(s){
+                            return s.round === (req.round||1) && Number(s.number) === Number(req.number); }) };
+    if (a === "submit") {
+      var r = req.record || {};
+      if (store.subs.some(function(s){ return s.round === r.round && Number(s.number) === Number(r.number); }))
+        return { ok:false, error:"이미 그 번호로 신청했어요. 선생님께 말씀드리세요." };
+      store.subs.push(r); save(); return { ok:true };
+    }
+    if (String(req.pin||"") !== PIN) return { ok:false, error:"비밀번호가 맞지 않습니다." };
+    if (a === "all")      return { ok:true, submissions: store.subs, assignments: store.assign, config: store.config };
+    if (a === "config")   { store.config = req.config; save(); return { ok:true }; }
+    if (a === "assign")   { store.assign = req.assignments || {}; save(); return { ok:true }; }
+    if (a === "reset")    { store.subs = []; store.assign = {}; if (req.config) store.config = req.config; save(); return { ok:true }; }
+    if (a === "savefile") {
+      store.files.push({ name:req.filename, mime:req.mime, content:req.content });
+      save(); window.__savedFiles = store.files;
+      return { ok:true, url:"https://drive.google.com/file/d/FAKE_" + store.files.length + "/view", name:req.filename };
+    }
+    return { ok:false, error:"알 수 없는 요청입니다: " + a };
+  }
+  function runner(){
+    var ok = function(){}, fail = function(){};
+    var self = {
+      withSuccessHandler: function(f){ ok = f; return self; },
+      withFailureHandler: function(f){ fail = f; return self; },
+      api: function(json){
+        setTimeout(function(){
+          try { ok(JSON.stringify(handle(JSON.parse(json)))); }
+          catch (e) { fail(e); }
+        }, 5);
+      }
+    };
+    return self;
+  }
+  window.google = { script: { get run(){ return runner(); } } };
+})();
+</script>
+
 <div class="wrap">
   <header>
     <div class="logo" aria-hidden="true">🍗</div>
