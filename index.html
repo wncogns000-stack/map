@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>우리 반 직업 신청</title>
+<title>양념반후라이드반 직업 신청</title>
 <style>
   :root{
     --bg:#f6f7fb; --panel:#ffffff; --ink:#1d2330; --muted:#6b7385;
@@ -87,11 +87,15 @@
   .bar>span{display:block; height:100%; background:var(--brand)}
   footer{text-align:center; color:var(--muted); font-size:.8rem; padding:26px 0 8px}
   .jobedit{display:grid; grid-template-columns:1.1fr 74px 2.4fr 44px; gap:8px; align-items:start; margin-bottom:8px}
+  .jobedit.j5{grid-template-columns:1fr 60px 155px 2fr 44px}
   .jobedit textarea{min-height:44px; resize:vertical}
   @media (max-width:620px){
     .jobedit{grid-template-columns:1fr 70px 40px; grid-template-areas:"n c d" "t t t"}
     .jobedit>*:nth-child(1){grid-area:n} .jobedit>*:nth-child(2){grid-area:c}
     .jobedit>*:nth-child(3){grid-area:t} .jobedit>*:nth-child(4){grid-area:d}
+    .jobedit.j5{grid-template-areas:"n c d" "w w w" "t t t"}
+    .jobedit.j5>*:nth-child(3){grid-area:w} .jobedit.j5>*:nth-child(4){grid-area:t}
+    .jobedit.j5>*:nth-child(5){grid-area:d}
   }
   .elected{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px}
   .noprint{}
@@ -101,7 +105,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1 id="appTitle">우리 반 직업 신청</h1>
+    <h1 id="appTitle">양념반후라이드반 직업 신청</h1>
     <span class="badge" id="monthBadge">—</span>
     <span class="spacer"></span>
     <button class="btn-ghost btn-sm noprint" id="teacherBtn">교사용</button>
@@ -116,33 +120,49 @@
 /* ------------------------------------------------------------------ *
  *  기본 설정값 (교사용 화면에서 언제든지 수정할 수 있습니다)
  * ------------------------------------------------------------------ */
+const OFFICER_DUTY =
+  "선생님 심부름, 교과실 인솔, 남학생 및 여학생 인원 파악, 직업활동 관리, " +
+  "학생 바른생활 관리(수업태도, 언어생활, 서랍정리, 청소 등 전체적인 학교생활 관리)";
+
 const DEFAULT_CONFIG = {
-  title: "우리 반 직업 신청",
+  title: "양념반후라이드반 직업 신청",
   monthLabel: "",              // 비워두면 현재 연월이 자동으로 들어갑니다
   pin: "1234",
   round: 1,                    // 초기화할 때마다 1씩 올라갑니다
   choiceCount: 3,
   elected: [
-    { name: "회장",     desc: "학급 회의를 이끌고 우리 반을 대표해요. 선생님과 친구들 사이에서 의견을 전달합니다. (투표로 뽑아요)",   winner: "" },
-    { name: "남부회장", desc: "회장을 도와 학급 일을 함께 챙기고, 회장이 없을 때 역할을 대신해요. (투표로 뽑아요)",                 winner: "" },
-    { name: "여부회장", desc: "회장을 도와 학급 일을 함께 챙기고, 회장이 없을 때 역할을 대신해요. (투표로 뽑아요)",                 winner: "" }
+    { name: "회장",     desc: OFFICER_DUTY + " (투표로 뽑아요)", winner: "" },
+    { name: "남부회장", desc: OFFICER_DUTY + " (투표로 뽑아요)", winner: "" },
+    { name: "여부회장", desc: OFFICER_DUTY + " (투표로 뽑아요)", winner: "" }
   ],
+  // 하는 일과 인원은 2026. 6. 15. 표준근로계약서를 그대로 옮긴 것입니다.
   jobs: [
-    { id:"j1",  name:"돌쇠",       cap:2, desc:"힘쓰는 일을 도맡아요. 무거운 물건·책상 옮기기, 급식통과 우유 상자 나르기를 도와줍니다." },
-    { id:"j2",  name:"교머니",     cap:2, desc:"교실 살림꾼이에요. 학급 물품과 학급 화폐를 관리하고 들어오고 나간 것을 기록합니다." },
-    { id:"j3",  name:"칠판지기",   cap:2, desc:"쉬는 시간마다 칠판을 깨끗이 지우고 분필·지우개를 정리해요." },
-    { id:"j4",  name:"청소대장",   cap:2, desc:"청소 구역을 나누고, 청소가 잘 되었는지 확인한 뒤 선생님께 알려요." },
-    { id:"j5",  name:"급식도우미", cap:2, desc:"급식 줄을 안내하고 식판·잔반 정리를 도와요." },
-    { id:"j6",  name:"우유당번",   cap:2, desc:"우유를 가져와 나누어 주고, 빈 우유팩을 모아 정리해요." },
-    { id:"j7",  name:"사물함지기", cap:1, desc:"사물함과 교실 뒤편이 잘 정리되어 있는지 살피고 안내해요." },
-    { id:"j8",  name:"도서부장",   cap:1, desc:"학급문고를 정리하고 책을 빌려주고 돌려받은 기록을 남겨요." },
-    { id:"j9",  name:"체육부장",   cap:2, desc:"체육 시간 준비물을 챙기고 줄서기와 준비운동을 도와요." },
-    { id:"j10", name:"방송지기",   cap:1, desc:"TV·컴퓨터·스피커 같은 기기를 켜고 끄고, 수업 자료를 띄우는 것을 도와요." },
-    { id:"j11", name:"식물지기",   cap:1, desc:"교실 화분에 물을 주고 잎을 닦으며 식물을 돌봐요." },
-    { id:"j12", name:"에너지지킴이",cap:1, desc:"이동 수업이나 하교 때 전등·에어컨을 끄고 창문을 닫아요." },
-    { id:"j13", name:"분리수거왕", cap:2, desc:"분리수거함을 관리하고 친구들에게 올바른 분리배출을 안내해요." },
-    { id:"j14", name:"시간지킴이", cap:1, desc:"수업 시작·마침 시간을 알리고 다음 시간 준비물을 안내해요." },
-    { id:"j15", name:"알림이",     cap:1, desc:"알림장 내용과 학급 게시판을 정리하고 친구들에게 알려요." }
+    { id:"j1",  name:"돌쇠",     cap:1, when:"수시",
+      desc:"회장, 남부회장, 여부회장 업무 보조 및 공정성 확인" },
+    { id:"j2",  name:"모둠장",   cap:6, when:"수시",
+      desc:"모둠 토의 및 활동 진행, 각종 모둠원 챙기고 도움주기" },
+    { id:"j3",  name:"칠가이",   cap:1, when:"수시",
+      desc:"칠판 지우기 및 마카 정리, 날짜·요일·시간표 수정" },
+    { id:"j4",  name:"편돌이",   cap:1, when:"수시",
+      desc:"매점 청소 및 재고 관리, 판매" },
+    { id:"j5",  name:"안나",     cap:1, when:"수시",
+      desc:"가정통신문, 안내장, 활동지 배부" },
+    { id:"j6",  name:"배민",     cap:2, when:"매일 아침 · 수시",
+      desc:"우유 배달, 다른 교실 물건 배달" },
+    { id:"j7",  name:"피카츄",   cap:2, when:"등교·하교 · 수시",
+      desc:"공기청정기 ON/OFF, 에어컨·난방기·태블릿 관리" },
+    { id:"j8",  name:"테트리스", cap:1, when:"수시 · 주2회(월·목)",
+      desc:"보드게임 정리, 서랍장 청소" },
+    { id:"j9",  name:"사스코",   cap:1, when:"수시 · 주2회(월·목)",
+      desc:"교실 창문, 블라인드, 사물함 관리 및 청소" },
+    { id:"j10", name:"스즈메",   cap:2, when:"수시 · 주2회(월·목)",
+      desc:"문단속, TV, 형광등 관리, 앞뒷문틀 청소" },
+    { id:"j11", name:"중계당",   cap:4, when:"주2회(월·목)",
+      desc:"(월) 4층·5층 사이 계단 청소, (목) 대강당 청소" },
+    { id:"j12", name:"영미신",   cap:3, when:"주2회(월·목)",
+      desc:"복도 바닥, 복도 창틀, 신발장 쓸고 닦기" },
+    { id:"j13", name:"교머니",   cap:3, when:"주2회(월·목)",
+      desc:"교실 앞·뒤·중앙, 쓰레기통 주변 청소, 책상 줄 정리" }
   ]
 };
 
@@ -232,7 +252,8 @@ function normalizeConfig(c){
   const cfg = Object.assign({}, DEFAULT_CONFIG, c || {});
   cfg.jobs = (cfg.jobs || []).map((j,i) => ({
     id: j.id || ("j"+(i+1)), name: String(j.name||"").trim(),
-    cap: Math.max(0, parseInt(j.cap,10) || 0), desc: String(j.desc||"")
+    cap: Math.max(0, parseInt(j.cap,10) || 0),
+    when: String(j.when||""), desc: String(j.desc||"")
   })).filter(j => j.name);
   cfg.elected = (cfg.elected || []).map(e => ({
     name: String(e.name||"").trim(), desc: String(e.desc||""), winner: String(e.winner||"")
@@ -333,7 +354,7 @@ function renderStudent(msg){
           return `<div class="job ${at>=0?"picked":""}" data-id="${esc(j.id)}" role="button" tabindex="0">
             ${at>=0 ? `<div class="pick-badge">${at+1}</div>` : ""}
             <div class="name">${esc(j.name)}</div>
-            <div class="cap">뽑는 인원 ${j.cap}명</div>
+            <div class="cap">뽑는 인원 ${j.cap}명${j.when ? " · " + esc(j.when) : ""}</div>
             <div class="desc">${esc(j.desc)}</div>
           </div>`;
         }).join("")}
@@ -619,9 +640,10 @@ function tabAssign(body, pin, subs, asg){
 
 function tabJobs(body, pin){
   const rows = CFG.jobs.map((j,i) => `
-    <div class="jobedit" data-i="${i}">
+    <div class="jobedit j5" data-i="${i}">
       <input type="text" class="e-name" value="${esc(j.name)}" placeholder="직업 이름">
       <input type="number" class="e-cap" value="${j.cap}" min="0" max="40" title="뽑는 인원">
+      <input type="text" class="e-when" value="${esc(j.when)}" placeholder="횟수 (예: 주2회 월·목)" title="활동 횟수">
       <textarea class="e-desc" placeholder="하는 일 설명">${esc(j.desc)}</textarea>
       <button class="btn-ghost btn-sm e-del" title="삭제">✕</button>
     </div>`).join("");
@@ -660,6 +682,7 @@ function tabJobs(body, pin){
       id: CFG.jobs[Number(r.dataset.i)] ? CFG.jobs[Number(r.dataset.i)].id : ("j"+Date.now()+i),
       name: r.querySelector(".e-name").value.trim(),
       cap: Math.max(0, parseInt(r.querySelector(".e-cap").value,10) || 0),
+      when: r.querySelector(".e-when").value.trim(),
       desc: r.querySelector(".e-desc").value.trim()
     })).filter(j => j.name);
     const el = Array.from(body.querySelectorAll("#elRows .jobedit")).map(r => ({
@@ -671,7 +694,7 @@ function tabJobs(body, pin){
   };
   body.querySelector("#addJob").onclick = () => {
     const { jobs, elected } = collect();
-    jobs.push({ id:"j"+Date.now(), name:"새 직업", cap:1, desc:"" });
+    jobs.push({ id:"j"+Date.now(), name:"새 직업", cap:1, when:"", desc:"" });
     CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
     tabJobs(body, pin);
   };
@@ -824,7 +847,8 @@ function downloadDoc(subs, asg){
   const byJob = CFG.jobs.map(j => {
     const list = subs.filter(s => asg[String(s.number)] === j.id).sort(byNumber)
                      .map(s => s.number + "번 " + s.name);
-    return `<tr><td><b>${esc(j.name)}</b></td><td align="center">${list.length}/${j.cap}</td><td>${esc(list.join(", ")) || "-"}</td></tr>`;
+    return `<tr><td><b>${esc(j.name)}</b></td><td align="center">${list.length}/${j.cap}</td>` +
+           `<td>${esc(j.when) || "-"}</td><td>${esc(list.join(", ")) || "-"}</td></tr>`;
   }).join("");
   const elected = CFG.elected.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.winner) || "-"}</td></tr>`).join("");
 
@@ -845,7 +869,7 @@ function downloadDoc(subs, asg){
     <table><tr><th width="52">번호</th><th width="90">이름</th>
       ${Array.from({length:need},(_,i)=>`<th>${i+1}지망</th>`).join("")}<th>배정 직업</th></tr>${rows}</table>
     <h2>3. 직업별 명단</h2>
-    <table><tr><th width="120">직업</th><th width="60">인원</th><th>학생</th></tr>${byJob}</table>
+    <table><tr><th width="110">직업</th><th width="56">인원</th><th width="130">횟수</th><th>학생</th></tr>${byJob}</table>
     </body></html>`;
   saveBlob(fileStem() + ".doc", new Blob(["﻿" + html], { type:"application/msword;charset=utf-8" }));
 }
