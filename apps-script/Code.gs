@@ -87,6 +87,7 @@ function handle_(req) {
   if (action === 'assign')   { writeAssignments_(req.assignments); return { ok: true }; }
   if (action === 'reset')    { resetAll_(req.config); return { ok: true }; }
   if (action === 'savefile') return saveFile_(req.filename, req.content, req.mime);
+  if (action === 'exportsheet') return exportSheet_(req.round);
 
   return { ok: false, error: '알 수 없는 요청입니다: ' + action };
 }
@@ -113,6 +114,85 @@ function saveFile_(filename, content, mime) {
   return { ok: true, url: file.getUrl(), name: file.getName() };
 }
 
+/**
+ * 지망 현황을 새 구글 스프레드시트로 만들어 줍니다.
+ * 회장·부회장이 직접 배정할 때 보기 좋도록 두 장으로 나눕니다.
+ *   1장 "지망 현황"    — 번호순으로 학생별 1·2·3지망
+ *   2장 "직업별 신청자" — 직업마다 지망한 학생 명단 (정원과 함께)
+ */
+function exportSheet_(round) {
+  var cfg = readConfig_() || {};
+  var jobs = cfg.jobs || [];
+  var count = Math.min(Math.max(1, Number(cfg.choiceCount) || 3), 5);
+  var asg = readAssignments_();
+  var subs = readSubs_().filter(function (s) { return s.round === (Number(round) || 1); })
+                        .sort(function (a, b) { return a.number - b.number; });
+
+  function nameOf(key) {
+    if (!key) return '';
+    for (var i = 0; i < jobs.length; i++) if (jobs[i].id === key) return jobs[i].name;
+    return String(key);
+  }
+
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var ss = SpreadsheetApp.create('지망현황_' + stamp);
+
+  // --- 1장: 학생별 지망 ---
+  var head = ['번호', '이름'];
+  for (var i = 0; i < count; i++) head.push((i + 1) + '지망');
+  head.push('배정 직업', '제출시각');
+
+  var rows = [head];
+  subs.forEach(function (s) {
+    var row = [s.number, s.name];
+    for (var i = 0; i < count; i++) row.push(nameOf((s.choices || [])[i]));
+    row.push(asg[String(s.number)] ? nameOf(asg[String(s.number)]) : '', s.at || '');
+    rows.push(row);
+  });
+
+  var sh1 = ss.getSheets()[0];
+  sh1.setName('지망 현황');
+  if (rows.length) sh1.getRange(1, 1, rows.length, head.length).setValues(rows);
+  sh1.getRange(1, 1, 1, head.length).setFontWeight('bold').setBackground('#fff0dc');
+  sh1.setFrozenRows(1);
+  sh1.autoResizeColumns(1, head.length);
+
+  // --- 2장: 직업별 신청자 ---
+  var head2 = ['직업', '정원'];
+  for (var i = 0; i < count; i++) head2.push((i + 1) + '지망 신청자');
+  head2.push('배정된 학생');
+
+  var rows2 = [head2];
+  jobs.forEach(function (j) {
+    var row = [j.name, j.cap];
+    for (var rank = 0; rank < count; rank++) {
+      var who = subs.filter(function (s) {
+        var k = (s.choices || [])[rank];
+        return k === j.id || nameOf(k) === j.name;
+      }).map(function (s) { return s.number + '번 ' + s.name; });
+      row.push(who.join(', '));
+    }
+    row.push(subs.filter(function (s) { return asg[String(s.number)] === j.id; })
+                 .map(function (s) { return s.number + '번 ' + s.name; }).join(', '));
+    rows2.push(row);
+  });
+
+  var sh2 = ss.insertSheet('직업별 신청자');
+  sh2.getRange(1, 1, rows2.length, head2.length).setValues(rows2);
+  sh2.getRange(1, 1, 1, head2.length).setFontWeight('bold').setBackground('#fff0dc');
+  sh2.setFrozenRows(1);
+  sh2.autoResizeColumns(1, head2.length);
+
+  // 결과 폴더로 옮겨 둡니다.
+  try {
+    var folders = DriveApp.getFoldersByName(RESULT_FOLDER);
+    var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(RESULT_FOLDER);
+    DriveApp.getFileById(ss.getId()).moveTo(folder);
+  } catch (err) { /* 폴더 정리에 실패해도 파일은 만들어져 있습니다 */ }
+
+  return { ok: true, url: ss.getUrl(), name: ss.getName(), rows: subs.length };
+}
+
 /* ---------------- 시트 도우미 ---------------- */
 
 function ss_() {
@@ -129,7 +209,8 @@ function sheet_(name, header) {
 }
 
 function subsSheet_() {
-  return sheet_(SHEET_SUBS, ['회차', '번호', '이름', '1지망', '2지망', '3지망', '4지망', '5지망', '제출시각']);
+  return sheet_(SHEET_SUBS,
+    ['회차', '번호', '이름', '1지망', '2지망', '3지망', '4지망', '5지망', '제출시각', '코드(자동)']);
 }
 
 function confSheet_() { return sheet_(SHEET_CONF, ['key', 'value']); }
@@ -182,8 +263,13 @@ function readSubs_() {
   for (var i = 1; i < values.length; i++) {
     var r = values[i];
     if (!r[1] && r[1] !== 0) continue;
+    // 맨 뒤 '코드' 열이 있으면 그것을, 없으면(예전 기록) 지망 열의 값을 씁니다.
     var choices = [];
-    for (var c = 3; c <= 7; c++) if (r[c]) choices.push(String(r[c]));
+    if (r[9]) {
+      choices = String(r[9]).split('|').filter(function (v) { return v; });
+    } else {
+      for (var c = 3; c <= 7; c++) if (r[c]) choices.push(String(r[c]));
+    }
     out.push({
       round: Number(r[0]) || 1,
       number: Number(r[1]),
@@ -209,11 +295,13 @@ function submit_(rec) {
   if (hasSubmitted_(round, rec.number)) {
     return { ok: false, error: '이미 그 번호로 신청했어요. 선생님께 말씀드리세요.' };
   }
-  var ch = rec.choices || [];
+  var ids = rec.choices || [];
+  var names = rec.choiceNames && rec.choiceNames.length ? rec.choiceNames : ids;  // 사람이 읽을 값
   subsSheet_().appendRow([
     round, Number(rec.number), String(rec.name),
-    ch[0] || '', ch[1] || '', ch[2] || '', ch[3] || '', ch[4] || '',
-    rec.at || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+    names[0] || '', names[1] || '', names[2] || '', names[3] || '', names[4] || '',
+    rec.at || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
+    ids.join('|')
   ]);
   return { ok: true };
 }
