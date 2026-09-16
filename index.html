@@ -325,12 +325,18 @@ const LS = {
 const qs = new URLSearchParams(location.search);
 if (qs.get("api")) localStorage.setItem(LS.api, qs.get("api").trim());
 const API = (localStorage.getItem(LS.api) || "").trim();
-const REMOTE = !!API;
+
+// 이 파일을 Apps Script 웹 앱에 함께 올려 배포하면 google.script.run 으로 바로 통신합니다.
+// (주소를 따로 설정할 필요도, CORS 걱정도 없습니다)
+const EMBEDDED = typeof google !== "undefined" && !!(google.script && google.script.run);
+const REMOTE = EMBEDDED || !!API;
+let WEB_APP_URL = "";                       // 학생에게 알려 줄 주소 (서버가 알려 줍니다)
 
 function jread(k, fb){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fb; }catch(e){ return fb; } }
 function jwrite(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 
 async function callApi(payload){
+  if (EMBEDDED) return callEmbedded(payload);
   const res = await fetch(API, {
     method:"POST",
     headers:{ "Content-Type":"text/plain;charset=utf-8" }, // preflight 회피
@@ -341,12 +347,29 @@ async function callApi(payload){
   return data;
 }
 
+/** Apps Script 안에서 돌 때 쓰는 통신. google.script.run 을 약속(Promise)으로 감쌉니다. */
+function callEmbedded(payload){
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(raw => {
+        let data;
+        try { data = typeof raw === "string" ? JSON.parse(raw) : raw; }
+        catch (e) { return reject(new Error("서버 응답을 읽지 못했어요.")); }
+        if (!data || !data.ok) return reject(new Error((data && data.error) || "요청을 처리하지 못했어요."));
+        resolve(data);
+      })
+      .withFailureHandler(err => reject(new Error((err && err.message) || "서버에 연결하지 못했어요.")))
+      .api(JSON.stringify(payload));
+  });
+}
+
 const Store = {
   remote: REMOTE,
 
   async publicConfig(){
     if (!REMOTE) return normalizeConfig(jread(LS.cfg, null) || DEFAULT_CONFIG);
     const d = await callApi({ action:"public" });
+    if (d.webAppUrl) WEB_APP_URL = d.webAppUrl;
     return normalizeConfig(d.config || DEFAULT_CONFIG);
   },
   async hasSubmitted(round, number){
@@ -377,6 +400,11 @@ const Store = {
     if (!REMOTE){ jwrite(LS.cfg, config); return true; }
     await callApi({ action:"config", pin, config });
     return true;
+  },
+  /** Apps Script 안에서는 선생님 드라이브에 저장하고 주소를 돌려줍니다. */
+  async saveFile(pin, filename, content, mime){
+    const d = await callApi({ action:"savefile", pin, filename, content, mime });
+    return d.url || "";
   },
   async saveAssignments(pin, assignments){
     if (!REMOTE){ jwrite(LS.asg, assignments); return true; }
@@ -766,8 +794,8 @@ function tabAssign(body, pin, subs, asg){
         결과는 아래 표에서 직접 바꿀 수도 있어요.</p>
       <div class="row noprint">
         <button class="btn" id="run" style="flex:0 0 auto">${has ? "다시 배정하기" : "자동 배정하기"}</button>
-        <button class="btn-ghost" id="dl" style="flex:0 0 auto" ${subs.length?"":"disabled"}>문서로 내려받기</button>
-        <button class="btn-ghost" id="csv" style="flex:0 0 auto" ${subs.length?"":"disabled"}>엑셀(CSV)로 내려받기</button>
+        <button class="btn-ghost" id="dl" style="flex:0 0 auto" ${subs.length?"":"disabled"}>문서로 ${EMBEDDED ? "저장하기" : "내려받기"}</button>
+        <button class="btn-ghost" id="csv" style="flex:0 0 auto" ${subs.length?"":"disabled"}>엑셀(CSV)로 ${EMBEDDED ? "저장하기" : "내려받기"}</button>
       </div>
       ${subs.length === 0 ? `<div class="msg info" style="margin-top:14px">아직 제출한 학생이 없어요.</div>` : `
       <div class="table-scroll" style="margin-top:14px"><table>
@@ -812,8 +840,8 @@ function tabAssign(body, pin, subs, asg){
     };
   });
   const dl = body.querySelector("#dl"), csv = body.querySelector("#csv");
-  if (dl) dl.onclick = () => downloadDoc(subs, asg);
-  if (csv) csv.onclick = () => downloadCsv(subs, asg);
+  if (dl) dl.onclick = () => downloadDoc(subs, asg, pin);
+  if (csv) csv.onclick = () => downloadCsv(subs, asg, pin);
 }
 
 function tabJobs(body, pin){
@@ -888,20 +916,28 @@ function tabSettings(body, pin, subs){
 
     <section class="card">
       <h2>학생에게 알려 줄 주소 🔗</h2>
-      <p class="hint">${REMOTE
-        ? "공유 모드예요. 아래 주소로 들어온 학생의 신청이 선생님의 구글 시트에 모입니다."
-        : "지금은 <b>이 기기 저장 모드</b>예요. 신청 내용이 이 브라우저에만 저장되므로, 교실 컴퓨터·태블릿 한 대로 차례차례 신청받을 때 쓰세요. 학생들이 각자 기기로 신청하게 하려면 아래 ‘공유 모드’를 설정하세요."}</p>
-      <input id="shareLink" type="text" readonly value="${esc(shareLink)}">
-      <div class="row" style="margin-top:10px">
-        <button class="btn-ghost" id="copyLink" style="flex:0 0 auto">주소 복사</button>
-      </div>
-      <label for="apiUrl" style="margin-top:18px">공유 모드 주소 (Google Apps Script 웹 앱 URL)</label>
-      <input id="apiUrl" type="text" value="${esc(API)}" placeholder="https://script.google.com/macros/s/..../exec">
-      <div class="row" style="margin-top:10px">
-        <button class="btn-ghost" id="saveApi" style="flex:0 0 auto">공유 모드 켜기</button>
-        ${REMOTE ? `<button class="btn-ghost" id="offApi" style="flex:0 0 auto">공유 모드 끄기</button>` : ""}
-      </div>
-      <p class="hint" style="margin-top:10px">설정 방법은 저장소의 <b>README.md</b>와 <b>apps-script/Code.gs</b> 파일을 참고하세요.</p>
+      ${EMBEDDED ? `
+        <p class="hint">구글 시트에 얹어 배포한 웹 앱이에요. 아래 주소 하나만 알려 주면
+          학생들이 각자 기기에서 신청할 수 있고, 신청 내용은 선생님 시트에 모입니다.</p>
+        <input id="shareLink" type="text" readonly value="${esc(WEB_APP_URL || location.href)}">
+        <div class="row" style="margin-top:10px">
+          <button class="btn-ghost" id="copyLink" style="flex:0 0 auto">주소 복사</button>
+        </div>
+      ` : `
+        <p class="hint">${API
+          ? "공유 모드예요. 아래 주소로 들어온 학생의 신청이 선생님의 구글 시트에 모입니다."
+          : "지금은 <b>이 기기 저장 모드</b>예요. 신청 내용이 이 브라우저에만 저장되므로, 교실 컴퓨터·태블릿 한 대를 돌려가며 신청받을 때 쓰세요.<br>학생들이 각자 기기로 신청하게 하려면 README의 <b>구글 시트에 얹어 배포하기</b>를 따라 주세요."}</p>
+        <input id="shareLink" type="text" readonly value="${esc(API ? location.origin + location.pathname + "?api=" + encodeURIComponent(API) : location.href)}">
+        <div class="row" style="margin-top:10px">
+          <button class="btn-ghost" id="copyLink" style="flex:0 0 auto">주소 복사</button>
+        </div>
+        <label for="apiUrl" style="margin-top:18px">따로 배포한 Apps Script 주소 (선택)</label>
+        <input id="apiUrl" type="text" value="${esc(API)}" placeholder="https://script.google.com/macros/s/..../exec">
+        <div class="row" style="margin-top:10px">
+          <button class="btn-ghost" id="saveApi" style="flex:0 0 auto">공유 모드 켜기</button>
+          ${API ? `<button class="btn-ghost" id="offApi" style="flex:0 0 auto">공유 모드 끄기</button>` : ""}
+        </div>
+      `}
     </section>
 
     <section class="card">
@@ -923,7 +959,7 @@ function tabSettings(body, pin, subs){
       <p class="hint">제출된 신청 ${subs.length}건과 배정 결과가 <b>모두 지워집니다.</b> 직업 목록과 설정은 그대로 남아요.
         학생 기기의 ‘제출 완료’ 화면도 함께 풀려서 다시 신청할 수 있게 됩니다. 되돌릴 수 없으니 먼저 문서로 내려받아 두세요.</p>
       <div class="row">
-        <button class="btn-ghost" id="dlBefore" style="flex:0 0 auto" ${subs.length?"":"disabled"}>먼저 문서로 내려받기</button>
+        <button class="btn-ghost" id="dlBefore" style="flex:0 0 auto" ${subs.length?"":"disabled"}>먼저 문서로 ${EMBEDDED ? "저장하기" : "내려받기"}</button>
         <button class="btn-danger" id="resetAll" style="flex:0 0 auto">전체 초기화</button>
       </div>
     </section>`;
@@ -972,7 +1008,8 @@ function tabSettings(body, pin, subs){
     const el = body.querySelector("#shareLink"); el.select();
     navigator.clipboard ? navigator.clipboard.writeText(el.value).then(()=>alert("복사했어요.")) : document.execCommand("copy");
   };
-  body.querySelector("#saveApi").onclick = () => {
+  const saveApiBtn = body.querySelector("#saveApi");
+  if (saveApiBtn) saveApiBtn.onclick = () => {
     const url = body.querySelector("#apiUrl").value.trim();
     if (!/^https:\/\/script\.google\.com\//.test(url)) return alert("Google Apps Script 웹 앱 주소를 입력해 주세요.");
     localStorage.setItem(LS.api, url);
@@ -987,7 +1024,7 @@ function tabSettings(body, pin, subs){
   const dlb = body.querySelector("#dlBefore");
   if (dlb) dlb.onclick = async () => {
     const data = await Store.all(pin);
-    downloadDoc(subs, data.assignments || {});
+    downloadDoc(subs, data.assignments || {}, pin);
   };
   body.querySelector("#resetAll").onclick = async () => {
     if (!confirm("정말 모든 신청 기록을 지울까요? 되돌릴 수 없어요.")) return;
@@ -1005,6 +1042,19 @@ function tabSettings(body, pin, subs){
 /* ------------------------------------------------------------------ *
  *  내려받기 (워드 문서 / CSV)
  * ------------------------------------------------------------------ */
+/**
+ * 파일을 건네줍니다.
+ * Apps Script 웹 앱 안에서는 브라우저 내려받기가 막힐 수 있어 선생님 드라이브에 저장하고 주소를 엽니다.
+ */
+async function handOver(pin, filename, content, mime, blob){
+  if (!EMBEDDED) return saveBlob(filename, blob);
+  const url = await Store.saveFile(pin, filename, content, mime);
+  if (!url) return alert("파일을 저장하지 못했어요.");
+  const win = window.open(url, "_blank");
+  if (!win) prompt("구글 드라이브에 저장했어요. 아래 주소를 복사해 열어 보세요.", url);
+  else alert("구글 드라이브의 '직업 신청 결과' 폴더에 저장했어요.");
+}
+
 function saveBlob(filename, blob){
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1020,7 +1070,7 @@ function fileStem(){
   const d = new Date(), p = n => String(n).padStart(2, "0");
   return "class-jobs_" + d.getFullYear() + "-" + p(d.getMonth()+1);
 }
-function downloadDoc(subs, asg){
+async function downloadDoc(subs, asg, pin){
   const need = Math.min(CFG.choiceCount, CFG.jobs.length);
   const rows = subs.slice().sort(byNumber).map(s => {
     const cells = Array.from({length:need}, (_,i) => `<td>${esc(jobName(CFG,(s.choices||[])[i]))}</td>`).join("");
@@ -1050,9 +1100,11 @@ function downloadDoc(subs, asg){
     <h2>2. 직업별 명단</h2>
     <table><tr><th width="110">직업</th><th width="56">인원</th><th width="130">횟수</th><th>학생</th></tr>${byJob}</table>
     </body></html>`;
-  saveBlob(fileStem() + ".doc", new Blob(["﻿" + html], { type:"application/msword;charset=utf-8" }));
+  const docContent = "\uFEFF" + html;
+  await handOver(pin, fileStem() + ".doc", docContent, "application/msword",
+                 new Blob([docContent], { type:"application/msword;charset=utf-8" }));
 }
-function downloadCsv(subs, asg){
+async function downloadCsv(subs, asg, pin){
   const need = Math.min(CFG.choiceCount, CFG.jobs.length);
   const q = v => `"${String(v==null?"":v).replace(/"/g,'""')}"`;
   const head = ["번호","이름", ...Array.from({length:need},(_,i)=>(i+1)+"지망"), "배정 직업","제출 시각"];
@@ -1063,7 +1115,9 @@ function downloadCsv(subs, asg){
       ...Array.from({length:need},(_,i)=>jobName(CFG,(s.choices||[])[i])),
       a ? jobName(CFG,a) : "미배정", s.at || ""].map(q).join(","));
   });
-  saveBlob(fileStem() + ".csv", new Blob(["﻿" + lines.join("\r\n")], { type:"text/csv;charset=utf-8" }));
+  const csvContent = "\uFEFF" + lines.join("\r\n");
+  await handOver(pin, fileStem() + ".csv", csvContent, "text/csv",
+                 new Blob([csvContent], { type:"text/csv;charset=utf-8" }));
 }
 
 /* ------------------------------------------------------------------ *

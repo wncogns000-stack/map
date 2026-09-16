@@ -1,20 +1,26 @@
 /**
- * 우리 반 직업 신청 — 공유 모드용 백엔드 (Google Apps Script)
+ * 우리 반 직업 신청 — 구글 시트에 얹어 배포하는 웹 앱 (Google Apps Script)
  *
- * 이 파일을 쓰면 학생들이 각자 휴대폰·태블릿으로 신청해도
- * 선생님의 구글 시트 한 곳에 신청 내용이 모입니다.
+ * 화면(index.html)과 자료 보관(구글 시트)을 한곳에서 돌립니다.
+ * 배포 한 번이면 주소 하나로 끝나고, 학생들이 각자 기기로 신청한 내용이
+ * 선생님 시트에 모입니다.
  *
- * ▣ 설치 방법 (10분)
+ * ▣ 설치 방법 (10분, 한 번만)
  *  1. 구글 드라이브에서 새 스프레드시트를 하나 만듭니다. (예: "우리 반 직업 신청")
  *  2. 메뉴 [확장 프로그램] → [Apps Script] 를 엽니다.
- *  3. 기본으로 있는 코드를 지우고 이 파일 내용을 전부 붙여넣고 저장합니다.
- *  4. 오른쪽 위 [배포] → [새 배포] → 유형 [웹 앱] 을 고릅니다.
+ *  3. 기본으로 있는 코드(Code.gs)를 지우고 이 파일 내용을 전부 붙여넣습니다.
+ *  4. 왼쪽 [파일] 옆 [+] → [HTML] 을 눌러 파일을 만들고, 이름을 반드시
+ *     "index" 로 합니다. 그 안의 내용을 모두 지우고 index.html 내용을
+ *     전부 붙여넣은 뒤 저장합니다.
+ *  5. 오른쪽 위 [배포] → [새 배포] → 유형 [웹 앱]
  *       - 실행 계정: 나
  *       - 액세스 권한: "모든 사용자" (링크를 아는 누구나)
- *  5. [배포]를 누르고 나오는 웹 앱 URL(.../exec)을 복사합니다.
- *  6. 직업 신청 웹앱 → [교사용] → [설정·초기화] → "공유 모드 주소"에 붙여넣고
- *     [공유 모드 켜기]를 누릅니다.
- *  7. 주소창에 생긴 링크(?api=... 포함)를 학생들에게 알려 주세요.
+ *  6. [배포]를 누르면 나오는 웹 앱 주소(.../exec)가 곧 우리 반 신청 주소입니다.
+ *     그 주소를 학생들에게 알려 주세요. 선생님도 같은 주소로 들어가
+ *     [교사용]을 누르면 됩니다.
+ *
+ *  ※ 코드를 고친 뒤에는 [배포] → [배포 관리] → 연필 → 버전 "새 버전" → [배포]
+ *     를 해야 바뀐 내용이 반영됩니다.
  *
  * ▣ 안전 장치
  *  - 학생 쪽에서는 직업 목록과 "내가 이미 냈는지" 만 확인할 수 있습니다.
@@ -27,31 +33,36 @@ var TEACHER_PIN = '3051';     // 교사용 비밀번호 (웹앱과 같은 값이
 
 var SHEET_SUBS = '신청';
 var SHEET_CONF = '설정';
+var RESULT_FOLDER = '직업 신청 결과';   // 결과 문서를 모아 둘 드라이브 폴더
+var SHEET_ID = '';                      // 비워 두면 이 스크립트가 붙어 있는 스프레드시트를 씁니다
 
+/** 학생·교사 모두 이 주소로 들어옵니다. */
 function doGet(e) {
-  return json_({ ok: true, message: '직업 신청 백엔드가 작동 중입니다.' });
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('우리 반 직업 신청')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+/** 화면에서 google.script.run.api(...) 로 부르는 창구입니다. */
+function api(payloadJson) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    return JSON.stringify(handle_(JSON.parse(payloadJson || '{}')));
+  } catch (err) {
+    return JSON.stringify({ ok: false, error: String(err && err.message || err) });
+  } finally {
+    try { lock.releaseLock(); } catch (ignore) {}
+  }
+}
+
+/** 따로 배포해 쓰는 경우(다른 곳에 올린 화면에서 부르는 경우)를 위한 창구입니다. */
 function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
-    var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    var action = req.action;
-
-    if (action === 'public') return json_({ ok: true, config: publicConfig_() });
-    if (action === 'check')  return json_({ ok: true, submitted: hasSubmitted_(req.round, req.number) });
-    if (action === 'submit') return json_(submit_(req.record));
-
-    // ---- 아래는 교사 전용 ----
-    if (!checkPin_(req.pin)) return json_({ ok: false, error: '비밀번호가 맞지 않습니다.' });
-
-    if (action === 'all')    return json_({ ok: true, submissions: readSubs_(), assignments: readAssignments_(), config: readConfig_() });
-    if (action === 'config') { writeConfig_(req.config); return json_({ ok: true }); }
-    if (action === 'assign') { writeAssignments_(req.assignments); return json_({ ok: true }); }
-    if (action === 'reset')  { resetAll_(req.config); return json_({ ok: true }); }
-
-    return json_({ ok: false, error: '알 수 없는 요청입니다: ' + action });
+    return json_(handle_(JSON.parse((e && e.postData && e.postData.contents) || '{}')));
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
   } finally {
@@ -59,14 +70,53 @@ function doPost(e) {
   }
 }
 
+/** 두 창구가 함께 쓰는 처리기. */
+function handle_(req) {
+  var action = req.action;
+
+  if (action === 'public') return { ok: true, config: publicConfig_(), webAppUrl: webAppUrl_() };
+  if (action === 'check')  return { ok: true, submitted: hasSubmitted_(req.round, req.number) };
+  if (action === 'submit') return submit_(req.record);
+
+  // ---- 아래는 교사 전용 ----
+  if (!checkPin_(req.pin)) return { ok: false, error: '비밀번호가 맞지 않습니다.' };
+
+  if (action === 'all')      return { ok: true, submissions: readSubs_(), assignments: readAssignments_(), config: readConfig_() };
+  if (action === 'config')   { writeConfig_(req.config); return { ok: true }; }
+  if (action === 'assign')   { writeAssignments_(req.assignments); return { ok: true }; }
+  if (action === 'reset')    { resetAll_(req.config); return { ok: true }; }
+  if (action === 'savefile') return saveFile_(req.filename, req.content, req.mime);
+
+  return { ok: false, error: '알 수 없는 요청입니다: ' + action };
+}
+
+function webAppUrl_() {
+  try { return ScriptApp.getService().getUrl() || ''; } catch (err) { return ''; }
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * 결과 문서를 선생님 드라이브에 저장합니다.
+ * (웹 앱 화면은 구글이 씌운 틀 안에서 돌기 때문에 브라우저 내려받기가 막힐 수 있습니다)
+ */
+function saveFile_(filename, content, mime) {
+  if (!filename || content == null) return { ok: false, error: '저장할 내용이 없습니다.' };
+  var folders = DriveApp.getFoldersByName(RESULT_FOLDER);
+  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(RESULT_FOLDER);
+  var blob = Utilities.newBlob(content, mime || 'application/octet-stream', filename);
+  var file = folder.createFile(blob);
+  return { ok: true, url: file.getUrl(), name: file.getName() };
+}
+
 /* ---------------- 시트 도우미 ---------------- */
 
-function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+function ss_() {
+  return SHEET_ID ? SpreadsheetApp.openById(SHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
+}
 
 function sheet_(name, header) {
   var sh = ss_().getSheetByName(name);
