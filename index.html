@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>우리 반 직업 신청</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --panel:#ffffff; --ink:#1d2330; --muted:#6b7385;
+    --line:#e3e6ef; --brand:#3f6ae0; --brand-soft:#eaf0ff;
+    --good:#1f9d63; --warn:#d9822b; --bad:#d64545;
+    --radius:14px; --shadow:0 1px 3px rgba(20,25,45,.08),0 8px 24px rgba(20,25,45,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#141822; --panel:#1c2130; --ink:#eef1f8; --muted:#a2abc0;
+      --line:#2c3446; --brand:#7c9cff; --brand-soft:#232c44;
+      --good:#48c98a; --warn:#e5a65a; --bad:#f07070;
+      --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,sans-serif;
+    line-height:1.55; -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:16px 16px 64px}
+  header{display:flex; align-items:center; gap:10px; padding:18px 0 10px; flex-wrap:wrap}
+  header h1{font-size:1.35rem; margin:0; letter-spacing:-.02em}
+  .badge{font-size:.78rem; background:var(--brand-soft); color:var(--brand); padding:3px 10px; border-radius:999px; font-weight:700}
+  .spacer{flex:1}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); margin-bottom:14px}
+  .card h2{font-size:1.05rem; margin:0 0 4px}
+  .hint{color:var(--muted); font-size:.88rem; margin:0 0 14px}
+  label{display:block; font-weight:700; font-size:.9rem; margin:12px 0 6px}
+  input[type=text],input[type=number],input[type=password],select,textarea{
+    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px;
+    background:var(--bg); color:var(--ink); font:inherit;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--brand); outline-offset:1px}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .row>*{flex:1; min-width:140px}
+  button{font:inherit; font-weight:700; cursor:pointer; border-radius:10px; border:1px solid transparent; padding:11px 16px}
+  .btn{background:var(--brand); color:#fff}
+  .btn:hover{filter:brightness(1.05)}
+  .btn-ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn-danger{background:var(--bad); color:#fff}
+  .btn-sm{padding:7px 11px; font-size:.85rem}
+  .btn:disabled,.btn-ghost:disabled{opacity:.45; cursor:not-allowed}
+  .jobs{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; margin-top:6px}
+  .job{position:relative; text-align:left; background:var(--panel); border:1.5px solid var(--line); border-radius:12px; padding:13px 13px 12px; cursor:pointer; transition:border-color .12s, transform .06s}
+  .job:hover{border-color:var(--brand)}
+  .job:active{transform:scale(.99)}
+  .job.picked{border-color:var(--brand); background:var(--brand-soft)}
+  .job .name{font-weight:800; font-size:1rem; display:flex; align-items:center; gap:6px}
+  .job .cap{color:var(--muted); font-size:.78rem; font-weight:600}
+  .job .desc{color:var(--muted); font-size:.85rem; margin-top:6px; white-space:pre-wrap}
+  .pick-badge{position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%; background:var(--brand); color:#fff; display:grid; place-items:center; font-size:.8rem; font-weight:800}
+  .picked-list{display:flex; flex-direction:column; gap:8px; margin:10px 0 0}
+  .picked-list .slot{display:flex; align-items:center; gap:10px; border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:.92rem}
+  .picked-list .slot b{color:var(--brand); min-width:52px}
+  .picked-list .slot.filled{border-style:solid}
+  table{width:100%; border-collapse:collapse; font-size:.9rem}
+  th,td{border-bottom:1px solid var(--line); padding:8px 6px; text-align:left; vertical-align:middle}
+  th{font-size:.82rem; color:var(--muted); font-weight:700; white-space:nowrap}
+  td.num,th.num{text-align:center; width:48px}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  .tag{display:inline-block; font-size:.78rem; padding:2px 8px; border-radius:999px; background:var(--brand-soft); color:var(--brand); font-weight:700}
+  .tag.gray{background:var(--line); color:var(--muted)}
+  .tag.good{background:rgba(31,157,99,.14); color:var(--good)}
+  .msg{padding:11px 13px; border-radius:10px; font-size:.9rem; font-weight:600; margin:10px 0}
+  .msg.err{background:rgba(214,69,69,.12); color:var(--bad)}
+  .msg.ok{background:rgba(31,157,99,.13); color:var(--good)}
+  .msg.info{background:var(--brand-soft); color:var(--brand)}
+  .done{text-align:center; padding:34px 14px}
+  .done .big{font-size:3rem; line-height:1}
+  .done h2{font-size:1.3rem; margin:12px 0 6px}
+  .tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px}
+  .tabs button{background:transparent; border:1px solid var(--line); color:var(--muted); padding:8px 13px; font-size:.9rem}
+  .tabs button[aria-selected="true"]{background:var(--brand); border-color:var(--brand); color:#fff}
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
+  .stat{background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+  .stat .k{font-size:.8rem; color:var(--muted); font-weight:700}
+  .stat .v{font-size:1.4rem; font-weight:800}
+  .bar{height:7px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:6px}
+  .bar>span{display:block; height:100%; background:var(--brand)}
+  footer{text-align:center; color:var(--muted); font-size:.8rem; padding:26px 0 8px}
+  .jobedit{display:grid; grid-template-columns:1.1fr 74px 2.4fr 44px; gap:8px; align-items:start; margin-bottom:8px}
+  .jobedit textarea{min-height:44px; resize:vertical}
+  @media (max-width:620px){
+    .jobedit{grid-template-columns:1fr 70px 40px; grid-template-areas:"n c d" "t t t"}
+    .jobedit>*:nth-child(1){grid-area:n} .jobedit>*:nth-child(2){grid-area:c}
+    .jobedit>*:nth-child(3){grid-area:t} .jobedit>*:nth-child(4){grid-area:d}
+  }
+  .elected{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px}
+  .noprint{}
+  @media print{ .noprint{display:none} body{background:#fff} .card{box-shadow:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="appTitle">우리 반 직업 신청</h1>
+    <span class="badge" id="monthBadge">—</span>
+    <span class="spacer"></span>
+    <button class="btn-ghost btn-sm noprint" id="teacherBtn">교사용</button>
+  </header>
+  <main id="view"></main>
+  <footer>제출한 내용은 선생님만 볼 수 있어요.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ *  기본 설정값 (교사용 화면에서 언제든지 수정할 수 있습니다)
+ * ------------------------------------------------------------------ */
+const DEFAULT_CONFIG = {
+  title: "우리 반 직업 신청",
+  monthLabel: "",              // 비워두면 현재 연월이 자동으로 들어갑니다
+  pin: "1234",
+  round: 1,                    // 초기화할 때마다 1씩 올라갑니다
+  choiceCount: 3,
+  elected: [
+    { name: "회장",     desc: "학급 회의를 이끌고 우리 반을 대표해요. 선생님과 친구들 사이에서 의견을 전달합니다. (투표로 뽑아요)",   winner: "" },
+    { name: "남부회장", desc: "회장을 도와 학급 일을 함께 챙기고, 회장이 없을 때 역할을 대신해요. (투표로 뽑아요)",                 winner: "" },
+    { name: "여부회장", desc: "회장을 도와 학급 일을 함께 챙기고, 회장이 없을 때 역할을 대신해요. (투표로 뽑아요)",                 winner: "" }
+  ],
+  jobs: [
+    { id:"j1",  name:"돌쇠",       cap:2, desc:"힘쓰는 일을 도맡아요. 무거운 물건·책상 옮기기, 급식통과 우유 상자 나르기를 도와줍니다." },
+    { id:"j2",  name:"교머니",     cap:2, desc:"교실 살림꾼이에요. 학급 물품과 학급 화폐를 관리하고 들어오고 나간 것을 기록합니다." },
+    { id:"j3",  name:"칠판지기",   cap:2, desc:"쉬는 시간마다 칠판을 깨끗이 지우고 분필·지우개를 정리해요." },
+    { id:"j4",  name:"청소대장",   cap:2, desc:"청소 구역을 나누고, 청소가 잘 되었는지 확인한 뒤 선생님께 알려요." },
+    { id:"j5",  name:"급식도우미", cap:2, desc:"급식 줄을 안내하고 식판·잔반 정리를 도와요." },
+    { id:"j6",  name:"우유당번",   cap:2, desc:"우유를 가져와 나누어 주고, 빈 우유팩을 모아 정리해요." },
+    { id:"j7",  name:"사물함지기", cap:1, desc:"사물함과 교실 뒤편이 잘 정리되어 있는지 살피고 안내해요." },
+    { id:"j8",  name:"도서부장",   cap:1, desc:"학급문고를 정리하고 책을 빌려주고 돌려받은 기록을 남겨요." },
+    { id:"j9",  name:"체육부장",   cap:2, desc:"체육 시간 준비물을 챙기고 줄서기와 준비운동을 도와요." },
+    { id:"j10", name:"방송지기",   cap:1, desc:"TV·컴퓨터·스피커 같은 기기를 켜고 끄고, 수업 자료를 띄우는 것을 도와요." },
+    { id:"j11", name:"식물지기",   cap:1, desc:"교실 화분에 물을 주고 잎을 닦으며 식물을 돌봐요." },
+    { id:"j12", name:"에너지지킴이",cap:1, desc:"이동 수업이나 하교 때 전등·에어컨을 끄고 창문을 닫아요." },
+    { id:"j13", name:"분리수거왕", cap:2, desc:"분리수거함을 관리하고 친구들에게 올바른 분리배출을 안내해요." },
+    { id:"j14", name:"시간지킴이", cap:1, desc:"수업 시작·마침 시간을 알리고 다음 시간 준비물을 안내해요." },
+    { id:"j15", name:"알림이",     cap:1, desc:"알림장 내용과 학급 게시판을 정리하고 친구들에게 알려요." }
+  ]
+};
+
+/* ------------------------------------------------------------------ *
+ *  저장소 : 기본은 이 기기(localStorage), ?api= 링크가 있으면 공유 모드
+ * ------------------------------------------------------------------ */
+const LS = {
+  cfg:"jobapp.v1.config", subs:"jobapp.v1.subs", asg:"jobapp.v1.assign",
+  lock:"jobapp.v1.lock", api:"jobapp.v1.api"
+};
+const qs = new URLSearchParams(location.search);
+if (qs.get("api")) localStorage.setItem(LS.api, qs.get("api").trim());
+const API = (localStorage.getItem(LS.api) || "").trim();
+const REMOTE = !!API;
+
+function jread(k, fb){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fb; }catch(e){ return fb; } }
+function jwrite(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+async function callApi(payload){
+  const res = await fetch(API, {
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8" }, // preflight 회피
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "요청을 처리하지 못했어요.");
+  return data;
+}
+
+const Store = {
+  remote: REMOTE,
+
+  async publicConfig(){
+    if (!REMOTE) return normalizeConfig(jread(LS.cfg, null) || DEFAULT_CONFIG);
+    const d = await callApi({ action:"public" });
+    return normalizeConfig(d.config || DEFAULT_CONFIG);
+  },
+  async hasSubmitted(round, number){
+    if (!REMOTE){
+      return jread(LS.subs, []).some(s => s.round === round && Number(s.number) === Number(number));
+    }
+    const d = await callApi({ action:"check", round, number });
+    return !!d.submitted;
+  },
+  async submit(rec){
+    if (!REMOTE){
+      const subs = jread(LS.subs, []);
+      if (subs.some(s => s.round === rec.round && Number(s.number) === Number(rec.number)))
+        throw new Error("이미 그 번호로 신청한 기록이 있어요. 선생님께 말씀드리세요.");
+      subs.push(rec); jwrite(LS.subs, subs); return true;
+    }
+    await callApi({ action:"submit", record: rec });
+    return true;
+  },
+  async all(pin){
+    if (!REMOTE){
+      return { submissions: jread(LS.subs, []), assignments: jread(LS.asg, {}), config: jread(LS.cfg, null) };
+    }
+    const d = await callApi({ action:"all", pin });
+    return { submissions: d.submissions || [], assignments: d.assignments || {}, config: d.config || null };
+  },
+  async saveConfig(pin, config){
+    if (!REMOTE){ jwrite(LS.cfg, config); return true; }
+    await callApi({ action:"config", pin, config });
+    return true;
+  },
+  async saveAssignments(pin, assignments){
+    if (!REMOTE){ jwrite(LS.asg, assignments); return true; }
+    await callApi({ action:"assign", pin, assignments });
+    return true;
+  },
+  async reset(pin, config){
+    if (!REMOTE){
+      jwrite(LS.subs, []); jwrite(LS.asg, {}); jwrite(LS.cfg, config); return true;
+    }
+    await callApi({ action:"reset", pin, config });
+    return true;
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ *  도우미
+ * ------------------------------------------------------------------ */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function thisMonthLabel(){ const d=new Date(); return d.getFullYear()+"년 "+(d.getMonth()+1)+"월"; }
+function normalizeConfig(c){
+  const cfg = Object.assign({}, DEFAULT_CONFIG, c || {});
+  cfg.jobs = (cfg.jobs || []).map((j,i) => ({
+    id: j.id || ("j"+(i+1)), name: String(j.name||"").trim(),
+    cap: Math.max(0, parseInt(j.cap,10) || 0), desc: String(j.desc||"")
+  })).filter(j => j.name);
+  cfg.elected = (cfg.elected || []).map(e => ({
+    name: String(e.name||"").trim(), desc: String(e.desc||""), winner: String(e.winner||"")
+  })).filter(e => e.name);
+  cfg.round = parseInt(cfg.round,10) || 1;
+  cfg.choiceCount = Math.min(Math.max(1, parseInt(cfg.choiceCount,10) || 3), 5);
+  cfg.pin = String(cfg.pin || "1234");
+  return cfg;
+}
+function jobName(cfg, id){ const j = cfg.jobs.find(x => x.id === id); return j ? j.name : "—"; }
+function shuffle(a){ const r=a.slice(); for(let i=r.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [r[i],r[j]]=[r[j],r[i]]; } return r; }
+function byNumber(a,b){ return (Number(a.number)||0) - (Number(b.number)||0); }
+function nowStamp(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+}
+
+/* ------------------------------------------------------------------ *
+ *  배정 알고리즘 : 1지망부터 차례대로, 정원이 넘치면 무작위 추첨
+ * ------------------------------------------------------------------ */
+function autoAssign(cfg, submissions){
+  const left = {}; cfg.jobs.forEach(j => left[j.id] = j.cap);
+  const result = {};                       // number -> jobId ("" = 미배정)
+  const students = shuffle(submissions.slice());
+  const pending = new Set(students.map(s => String(s.number)));
+
+  for (let rank = 0; rank < cfg.choiceCount; rank++){
+    const wanted = {};                     // jobId -> [학생]
+    students.forEach(s => {
+      if (!pending.has(String(s.number))) return;
+      const id = (s.choices || [])[rank];
+      if (!id || left[id] === undefined || left[id] <= 0) return;
+      (wanted[id] = wanted[id] || []).push(s);
+    });
+    Object.keys(wanted).forEach(id => {
+      const winners = shuffle(wanted[id]).slice(0, left[id]);
+      winners.forEach(s => { result[String(s.number)] = id; pending.delete(String(s.number)); left[id]--; });
+    });
+  }
+  pending.forEach(n => { result[n] = ""; });   // 지망한 직업이 모두 찬 경우
+  return result;
+}
+
+/* ------------------------------------------------------------------ *
+ *  화면 그리기
+ * ------------------------------------------------------------------ */
+const view = document.getElementById("view");
+let CFG = normalizeConfig(DEFAULT_CONFIG);
+let picks = [];            // 선택한 직업 id 배열 (지망 순서)
+
+function paintHeader(){
+  document.getElementById("appTitle").textContent = CFG.title || "우리 반 직업 신청";
+  document.getElementById("monthBadge").textContent = CFG.monthLabel || thisMonthLabel();
+  document.title = CFG.title || "우리 반 직업 신청";
+}
+
+/* ---------- 학생 : 신청 화면 ---------- */
+function renderStudent(msg){
+  paintHeader();
+  const need = Math.min(CFG.choiceCount, CFG.jobs.length);
+  const slots = [];
+  for (let i = 0; i < need; i++){
+    const id = picks[i];
+    slots.push(`<div class="slot ${id?"filled":""}"><b>${i+1}지망</b>
+      <span>${id ? esc(jobName(CFG, id)) : "<span style='color:var(--muted)'>아래에서 골라 주세요</span>"}</span></div>`);
+  }
+  view.innerHTML = `
+    ${msg ? `<div class="msg err">${esc(msg)}</div>` : ""}
+    <section class="card">
+      <h2>1. 내 정보</h2>
+      <p class="hint">이름과 번호를 정확하게 적어 주세요.</p>
+      <div class="row">
+        <div><label for="sNum">번호</label><input id="sNum" type="number" min="1" max="50" inputmode="numeric" placeholder="예) 7"></div>
+        <div style="flex:2"><label for="sName">이름</label><input id="sName" type="text" maxlength="12" placeholder="예) 김하늘"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 투표로 뽑는 직업</h2>
+      <p class="hint">아래 직업은 신청이 아니라 <b>학급 선거 투표</b>로 뽑아요. 하는 일을 참고만 하세요.</p>
+      <div class="jobs">
+        ${CFG.elected.map(e => `
+          <div class="job" style="cursor:default; opacity:.92">
+            <div class="name">${esc(e.name)} <span class="tag gray">투표</span></div>
+            <div class="desc">${esc(e.desc)}</div>
+          </div>`).join("")}
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. 하고 싶은 직업 ${need}가지 고르기</h2>
+      <p class="hint">누른 순서대로 1지망 → ${need}지망이 돼요. 다시 누르면 선택이 취소됩니다.
+        신청자가 많으면 다른 지망으로 배정될 수 있어요.</p>
+      <div class="picked-list">${slots.join("")}</div>
+      <div class="jobs" id="jobGrid">
+        ${CFG.jobs.map(j => {
+          const at = picks.indexOf(j.id);
+          return `<div class="job ${at>=0?"picked":""}" data-id="${esc(j.id)}" role="button" tabindex="0">
+            ${at>=0 ? `<div class="pick-badge">${at+1}</div>` : ""}
+            <div class="name">${esc(j.name)}</div>
+            <div class="cap">뽑는 인원 ${j.cap}명</div>
+            <div class="desc">${esc(j.desc)}</div>
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn-ghost" id="clearPick" style="flex:0 0 auto">선택 지우기</button>
+        <button class="btn" id="submitBtn">제출하기</button>
+      </div>
+      <p class="hint" style="margin:10px 0 0">제출한 뒤에는 내용을 다시 볼 수 없고, 고칠 수도 없어요. 잘 확인하고 제출하세요.</p>
+    </section>`;
+
+  // 선택이 바뀔 때 화면 전체를 다시 그리지 않고 배지와 지망 목록만 갱신합니다.
+  const paintPicks = () => {
+    view.querySelectorAll(".picked-list .slot").forEach((slot, i) => {
+      const id = picks[i];
+      slot.classList.toggle("filled", !!id);
+      slot.lastElementChild.innerHTML = id
+        ? esc(jobName(CFG, id))
+        : "<span style='color:var(--muted)'>아래에서 골라 주세요</span>";
+    });
+    view.querySelectorAll(".job[data-id]").forEach(el => {
+      const at = picks.indexOf(el.dataset.id);
+      el.classList.toggle("picked", at >= 0);
+      const badge = el.querySelector(".pick-badge");
+      if (at >= 0){
+        if (badge) badge.textContent = at + 1;
+        else el.insertAdjacentHTML("afterbegin", `<div class="pick-badge">${at+1}</div>`);
+      } else if (badge) badge.remove();
+    });
+  };
+  view.querySelectorAll(".job[data-id]").forEach(el => {
+    const toggle = () => {
+      const id = el.dataset.id, at = picks.indexOf(id);
+      if (at >= 0) picks.splice(at, 1);
+      else if (picks.length < need) picks.push(id);
+      else { flash("이미 " + need + "가지를 골랐어요. 바꾸려면 고른 직업을 다시 누르세요."); return; }
+      paintPicks();
+    };
+    el.addEventListener("click", toggle);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); } });
+  });
+  view.querySelector("#clearPick").onclick = () => { picks = []; paintPicks(); };
+  view.querySelector("#submitBtn").onclick = doSubmit;
+}
+
+function flash(text){
+  const old = document.querySelector(".flash-msg");
+  if (old) old.remove();
+  const d = document.createElement("div");
+  d.className = "msg info flash-msg";
+  d.textContent = text;
+  view.prepend(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+async function doSubmit(){
+  const need = Math.min(CFG.choiceCount, CFG.jobs.length);
+  const number = parseInt(view.querySelector("#sNum").value, 10);
+  const name = (view.querySelector("#sName").value || "").trim();
+  if (!number || number < 1 || number > 50) return flash("번호를 바르게 입력해 주세요.");
+  if (name.length < 2) return flash("이름을 정확히 입력해 주세요.");
+  if (picks.length < need) return flash(need + "가지 직업을 모두 골라 주세요.");
+
+  const list = picks.map((id, i) => `${i+1}지망 ${jobName(CFG, id)}`).join("\n");
+  if (!confirm(`${number}번 ${name}\n\n${list}\n\n이대로 제출할까요?\n제출하면 다시 볼 수 없어요.`)) return;
+
+  const btn = view.querySelector("#submitBtn");
+  btn.disabled = true; btn.textContent = "제출 중…";
+  const rec = { round: CFG.round, number, name, choices: picks.slice(), at: nowStamp() };
+  try{
+    if (await Store.hasSubmitted(CFG.round, number))
+      throw new Error("이미 그 번호로 신청했어요. 선생님께 말씀드리세요.");
+    await Store.submit(rec);
+    jwrite(LS.lock, { round: CFG.round, number, name, at: rec.at });
+    picks = [];
+    renderDone({ number, name });
+  }catch(err){
+    btn.disabled = false; btn.textContent = "제출하기";
+    flash(err.message || "제출하지 못했어요. 다시 시도해 주세요.");
+  }
+}
+
+/* ---------- 학생 : 제출 완료 화면 ---------- */
+function renderDone(lock){
+  paintHeader();
+  view.innerHTML = `
+    <section class="card done">
+      <div class="big">✅</div>
+      <h2>신청이 끝났어요!</h2>
+      <p class="hint" style="margin:0 auto; max-width:420px">
+        ${esc(lock.number)}번 ${esc(lock.name)} 학생의 신청이 저장되었어요.<br>
+        내가 고른 직업은 선생님만 볼 수 있어요. 결과는 선생님이 알려 주실 거예요.
+      </p>
+      <div class="row noprint" style="justify-content:center; margin-top:20px">
+        <button class="btn-ghost" id="nextStudent" style="flex:0 0 auto">다음 학생 신청하기</button>
+      </div>
+      <p class="hint" style="margin:10px 0 0">교실 컴퓨터 한 대로 차례차례 신청할 때 누르세요.
+        이미 신청한 내용은 어떤 경우에도 다시 볼 수 없어요.</p>
+    </section>`;
+  view.querySelector("#nextStudent").onclick = () => {
+    localStorage.removeItem(LS.lock);
+    picks = [];
+    renderStudent();
+  };
+}
+
+/* ---------- 교사 : 로그인 ---------- */
+function renderTeacherLogin(err){
+  view.innerHTML = `
+    <section class="card">
+      <h2>교사용 화면</h2>
+      <p class="hint">비밀번호를 입력하세요. (처음 비밀번호는 <b>1234</b>, 설정에서 바꿀 수 있어요)</p>
+      ${err ? `<div class="msg err">${esc(err)}</div>` : ""}
+      <label for="pin">비밀번호</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password">
+      <div class="row" style="margin-top:14px">
+        <button class="btn-ghost" id="back" style="flex:0 0 auto">돌아가기</button>
+        <button class="btn" id="go">확인</button>
+      </div>
+    </section>`;
+  const go = async () => {
+    const pin = view.querySelector("#pin").value.trim();
+    // 이 기기 저장 모드는 여기서, 공유 모드는 서버에서 비밀번호를 확인합니다.
+    if (!REMOTE && pin !== CFG.pin) return renderTeacherLogin("비밀번호가 맞지 않아요.");
+    try{
+      const data = await Store.all(pin);
+      if (data.config) CFG = normalizeConfig(data.config);   // 교사에게만 비밀번호까지 전달
+      renderTeacher(pin, data, "submissions");
+    }catch(e){ renderTeacherLogin(e.message || "비밀번호가 맞지 않아요."); }
+  };
+  view.querySelector("#go").onclick = go;
+  view.querySelector("#pin").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  view.querySelector("#back").onclick = () => start();
+}
+
+/* ---------- 교사 : 대시보드 ---------- */
+async function refreshTeacher(pin, tab){
+  const data = await Store.all(pin);
+  renderTeacher(pin, data, tab);
+}
+
+function renderTeacher(pin, data, tab){
+  paintHeader();
+  const subs = (data.submissions || []).filter(s => s.round === CFG.round).sort(byNumber);
+  const asg  = data.assignments || {};
+  const tabs = [["submissions","신청 현황"],["assign","직업 배정"],["jobs","직업 관리"],["settings","설정·초기화"]];
+
+  view.innerHTML = `
+    <div class="tabs noprint">
+      ${tabs.map(([k,l]) => `<button data-tab="${k}" aria-selected="${tab===k}">${l}</button>`).join("")}
+      <span class="spacer"></span>
+      <button class="btn-ghost btn-sm" id="exitT">학생 화면으로</button>
+    </div>
+    <div id="tabBody"></div>`;
+
+  view.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => renderTeacher(pin, data, b.dataset.tab));
+  view.querySelector("#exitT").onclick = () => start();
+
+  const body = view.querySelector("#tabBody");
+  if (tab === "submissions") tabSubmissions(body, pin, subs);
+  if (tab === "assign")      tabAssign(body, pin, subs, asg);
+  if (tab === "jobs")        tabJobs(body, pin);
+  if (tab === "settings")    tabSettings(body, pin, subs);
+}
+
+function tabSubmissions(body, pin, subs){
+  const total = subs.length;
+  const counts = {};                                  // jobId -> 지망별 수
+  CFG.jobs.forEach(j => counts[j.id] = [0,0,0,0,0]);
+  subs.forEach(s => (s.choices||[]).forEach((id,i) => { if (counts[id]) counts[id][i]++; }));
+
+  body.innerHTML = `
+    <section class="card">
+      <h2>신청 현황</h2>
+      <p class="hint">${CFG.monthLabel || thisMonthLabel()} · 번호 순서로 정리했어요.</p>
+      <div class="stat-grid" style="margin-bottom:14px">
+        <div class="stat"><div class="k">제출한 학생</div><div class="v">${total}명</div></div>
+        <div class="stat"><div class="k">신청 직업 수</div><div class="v">${CFG.jobs.length}개</div></div>
+        <div class="stat"><div class="k">전체 정원</div><div class="v">${CFG.jobs.reduce((a,j)=>a+j.cap,0)}명</div></div>
+      </div>
+      ${total === 0 ? `<div class="msg info">아직 제출한 학생이 없어요.</div>` : `
+      <div class="table-scroll"><table>
+        <thead><tr><th class="num">번호</th><th>이름</th>
+          ${Array.from({length:Math.min(CFG.choiceCount,CFG.jobs.length)},(_,i)=>`<th>${i+1}지망</th>`).join("")}
+          <th>제출 시각</th></tr></thead>
+        <tbody>${subs.map(s => `<tr>
+          <td class="num">${esc(s.number)}</td><td>${esc(s.name)}</td>
+          ${Array.from({length:Math.min(CFG.choiceCount,CFG.jobs.length)},(_,i)=>`<td>${esc(jobName(CFG,(s.choices||[])[i]))}</td>`).join("")}
+          <td style="color:var(--muted); white-space:nowrap">${esc(s.at||"")}</td></tr>`).join("")}</tbody>
+      </table></div>`}
+      <div class="row noprint" style="margin-top:14px">
+        <button class="btn-ghost" id="refresh" style="flex:0 0 auto">새로고침</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>직업별 지망 현황</h2>
+      <p class="hint">막대는 1지망 인원을 정원과 비교한 거예요.</p>
+      ${CFG.jobs.map(j => {
+        const c = counts[j.id] || [0,0,0];
+        const pct = j.cap ? Math.min(100, Math.round(c[0]/j.cap*100)) : 0;
+        return `<div style="margin-bottom:11px">
+          <div style="display:flex; gap:8px; align-items:baseline; font-size:.9rem">
+            <b>${esc(j.name)}</b><span class="cap" style="color:var(--muted)">정원 ${j.cap}명</span>
+            <span class="spacer" style="flex:1"></span>
+            <span style="color:var(--muted)">1지망 ${c[0]} · 2지망 ${c[1]} · 3지망 ${c[2]}</span>
+          </div>
+          <div class="bar"><span style="width:${pct}%; background:${c[0]>j.cap?"var(--warn)":"var(--brand)"}"></span></div>
+        </div>`;
+      }).join("")}
+    </section>`;
+  body.querySelector("#refresh").onclick = () => refreshTeacher(pin, "submissions");
+}
+
+function tabAssign(body, pin, subs, asg){
+  const need = Math.min(CFG.choiceCount, CFG.jobs.length);
+  const has = Object.keys(asg).length > 0;
+  const rankOf = (s) => {
+    const id = asg[String(s.number)];
+    if (!id) return `<span class="tag gray">미배정</span>`;
+    const r = (s.choices||[]).indexOf(id);
+    return r >= 0 ? `<span class="tag good">${r+1}지망</span>` : `<span class="tag">직접 지정</span>`;
+  };
+  const byJob = {}; CFG.jobs.forEach(j => byJob[j.id] = []);
+  subs.forEach(s => { const id = asg[String(s.number)]; if (id && byJob[id]) byJob[id].push(s); });
+
+  body.innerHTML = `
+    <section class="card">
+      <h2>직업 배정</h2>
+      <p class="hint">1지망부터 차례로 배정하고, 정원보다 신청자가 많으면 무작위로 뽑아요.
+        결과는 아래 표에서 직접 바꿀 수도 있어요.</p>
+      <div class="row noprint">
+        <button class="btn" id="run" style="flex:0 0 auto">${has ? "다시 배정하기" : "자동 배정하기"}</button>
+        <button class="btn-ghost" id="dl" style="flex:0 0 auto" ${subs.length?"":"disabled"}>문서로 내려받기</button>
+        <button class="btn-ghost" id="csv" style="flex:0 0 auto" ${subs.length?"":"disabled"}>엑셀(CSV)로 내려받기</button>
+      </div>
+      ${subs.length === 0 ? `<div class="msg info" style="margin-top:14px">아직 제출한 학생이 없어요.</div>` : `
+      <div class="table-scroll" style="margin-top:14px"><table>
+        <thead><tr><th class="num">번호</th><th>이름</th>
+          ${Array.from({length:need},(_,i)=>`<th>${i+1}지망</th>`).join("")}
+          <th>배정 직업</th><th>결과</th></tr></thead>
+        <tbody>${subs.map(s => `<tr>
+          <td class="num">${esc(s.number)}</td><td>${esc(s.name)}</td>
+          ${Array.from({length:need},(_,i)=>`<td style="color:var(--muted)">${esc(jobName(CFG,(s.choices||[])[i]))}</td>`).join("")}
+          <td><select data-num="${esc(s.number)}" style="min-width:120px">
+            <option value="">— 미배정 —</option>
+            ${CFG.jobs.map(j => `<option value="${esc(j.id)}" ${asg[String(s.number)]===j.id?"selected":""}>${esc(j.name)}</option>`).join("")}
+          </select></td>
+          <td>${rankOf(s)}</td></tr>`).join("")}</tbody>
+      </table></div>`}
+    </section>
+
+    ${has ? `<section class="card">
+      <h2>직업별 배정 명단</h2>
+      ${CFG.jobs.map(j => `<div style="margin-bottom:9px; font-size:.92rem">
+        <b>${esc(j.name)}</b> <span style="color:var(--muted)">(${byJob[j.id].length}/${j.cap})</span> —
+        ${byJob[j.id].length ? byJob[j.id].sort(byNumber).map(s => esc(s.number+"번 "+s.name)).join(", ")
+                             : `<span style="color:var(--muted)">없음</span>`}</div>`).join("")}
+      ${subs.filter(s => !asg[String(s.number)]).length ? `<div class="msg info" style="margin-top:10px">
+        미배정: ${subs.filter(s => !asg[String(s.number)]).sort(byNumber).map(s => esc(s.number+"번 "+s.name)).join(", ")}
+      </div>` : ""}
+    </section>` : ""}`;
+
+  body.querySelector("#run").onclick = async () => {
+    if (!subs.length) return;
+    if (has && !confirm("이미 있는 배정 결과를 지우고 다시 배정할까요?")) return;
+    const result = autoAssign(CFG, subs);
+    await Store.saveAssignments(pin, result);
+    refreshTeacher(pin, "assign");
+  };
+  body.querySelectorAll("select[data-num]").forEach(sel => {
+    sel.onchange = async () => {
+      const next = Object.assign({}, asg);
+      next[sel.dataset.num] = sel.value;
+      await Store.saveAssignments(pin, next);
+      refreshTeacher(pin, "assign");
+    };
+  });
+  const dl = body.querySelector("#dl"), csv = body.querySelector("#csv");
+  if (dl) dl.onclick = () => downloadDoc(subs, asg);
+  if (csv) csv.onclick = () => downloadCsv(subs, asg);
+}
+
+function tabJobs(body, pin){
+  const rows = CFG.jobs.map((j,i) => `
+    <div class="jobedit" data-i="${i}">
+      <input type="text" class="e-name" value="${esc(j.name)}" placeholder="직업 이름">
+      <input type="number" class="e-cap" value="${j.cap}" min="0" max="40" title="뽑는 인원">
+      <textarea class="e-desc" placeholder="하는 일 설명">${esc(j.desc)}</textarea>
+      <button class="btn-ghost btn-sm e-del" title="삭제">✕</button>
+    </div>`).join("");
+  const elected = CFG.elected.map((e,i) => `
+    <div class="jobedit" data-ei="${i}">
+      <input type="text" class="x-name" value="${esc(e.name)}" placeholder="직책 이름">
+      <input type="text" class="x-win" value="${esc(e.winner)}" placeholder="당선자" title="당선자 이름">
+      <textarea class="x-desc" placeholder="하는 일 설명">${esc(e.desc)}</textarea>
+      <button class="btn-ghost btn-sm x-del" title="삭제">✕</button>
+    </div>`).join("");
+
+  body.innerHTML = `
+    <section class="card">
+      <h2>신청하는 직업</h2>
+      <p class="hint">이름 · 뽑는 인원 · 하는 일 설명을 자유롭게 고칠 수 있어요. 학생 화면에 그대로 보입니다.</p>
+      <div id="jobRows">${rows}</div>
+      <div class="row noprint" style="margin-top:8px">
+        <button class="btn-ghost" id="addJob" style="flex:0 0 auto">+ 직업 추가</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2>투표로 뽑는 직책</h2>
+      <p class="hint">학생은 신청할 수 없고 설명만 볼 수 있어요. 당선자 이름을 적어 두면 문서에도 함께 인쇄됩니다.</p>
+      <div id="elRows">${elected}</div>
+      <div class="row noprint" style="margin-top:8px">
+        <button class="btn-ghost" id="addEl" style="flex:0 0 auto">+ 직책 추가</button>
+      </div>
+    </section>
+    <section class="card noprint">
+      <div class="row"><button class="btn" id="saveJobs">저장하기</button></div>
+      <p class="hint" style="margin:10px 0 0">저장하면 학생 화면에 바로 반영돼요. 이미 제출된 신청 내용은 그대로 남습니다.</p>
+    </section>`;
+
+  const collect = () => {
+    const jobs = Array.from(body.querySelectorAll("#jobRows .jobedit")).map((r,i) => ({
+      id: CFG.jobs[Number(r.dataset.i)] ? CFG.jobs[Number(r.dataset.i)].id : ("j"+Date.now()+i),
+      name: r.querySelector(".e-name").value.trim(),
+      cap: Math.max(0, parseInt(r.querySelector(".e-cap").value,10) || 0),
+      desc: r.querySelector(".e-desc").value.trim()
+    })).filter(j => j.name);
+    const el = Array.from(body.querySelectorAll("#elRows .jobedit")).map(r => ({
+      name: r.querySelector(".x-name").value.trim(),
+      winner: r.querySelector(".x-win").value.trim(),
+      desc: r.querySelector(".x-desc").value.trim()
+    })).filter(e => e.name);
+    return { jobs, elected: el };
+  };
+  body.querySelector("#addJob").onclick = () => {
+    const { jobs, elected } = collect();
+    jobs.push({ id:"j"+Date.now(), name:"새 직업", cap:1, desc:"" });
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    tabJobs(body, pin);
+  };
+  body.querySelector("#addEl").onclick = () => {
+    const { jobs, elected } = collect();
+    elected.push({ name:"새 직책", winner:"", desc:"" });
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    tabJobs(body, pin);
+  };
+  body.querySelectorAll(".e-del").forEach(b => b.onclick = () => {
+    const { jobs, elected } = collect();
+    jobs.splice(Number(b.closest(".jobedit").dataset.i), 1);
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    tabJobs(body, pin);
+  });
+  body.querySelectorAll(".x-del").forEach(b => b.onclick = () => {
+    const { jobs, elected } = collect();
+    elected.splice(Number(b.closest(".jobedit").dataset.ei), 1);
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    tabJobs(body, pin);
+  });
+  body.querySelector("#saveJobs").onclick = async () => {
+    const { jobs, elected } = collect();
+    if (!jobs.length) return alert("직업을 1개 이상 남겨 주세요.");
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    await Store.saveConfig(pin, CFG);
+    alert("저장했어요.");
+    refreshTeacher(pin, "jobs");
+  };
+}
+
+function tabSettings(body, pin, subs){
+  const shareLink = REMOTE ? location.origin + location.pathname + "?api=" + encodeURIComponent(API) : location.href;
+  body.innerHTML = `
+    <section class="card">
+      <h2>기본 설정</h2>
+      <label for="cTitle">제목</label>
+      <input id="cTitle" type="text" value="${esc(CFG.title)}">
+      <label for="cMonth">이번 달 표시 (비우면 자동)</label>
+      <input id="cMonth" type="text" value="${esc(CFG.monthLabel)}" placeholder="${esc(thisMonthLabel())}">
+      <div class="row">
+        <div><label for="cCount">지망 개수</label>
+          <input id="cCount" type="number" min="1" max="5" value="${CFG.choiceCount}"></div>
+        <div><label for="cPin">교사 비밀번호</label>
+          <input id="cPin" type="text" value="${esc(CFG.pin)}"></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn" id="saveCfg">저장하기</button></div>
+    </section>
+
+    <section class="card">
+      <h2>학생에게 알려 줄 주소</h2>
+      <p class="hint">${REMOTE
+        ? "공유 모드예요. 아래 주소로 들어온 학생의 신청이 선생님의 구글 시트에 모입니다."
+        : "지금은 <b>이 기기 저장 모드</b>예요. 신청 내용이 이 브라우저에만 저장되므로, 교실 컴퓨터·태블릿 한 대로 차례차례 신청받을 때 쓰세요. 학생들이 각자 기기로 신청하게 하려면 아래 ‘공유 모드’를 설정하세요."}</p>
+      <input id="shareLink" type="text" readonly value="${esc(shareLink)}">
+      <div class="row" style="margin-top:10px">
+        <button class="btn-ghost" id="copyLink" style="flex:0 0 auto">주소 복사</button>
+      </div>
+      <label for="apiUrl" style="margin-top:18px">공유 모드 주소 (Google Apps Script 웹 앱 URL)</label>
+      <input id="apiUrl" type="text" value="${esc(API)}" placeholder="https://script.google.com/macros/s/..../exec">
+      <div class="row" style="margin-top:10px">
+        <button class="btn-ghost" id="saveApi" style="flex:0 0 auto">공유 모드 켜기</button>
+        ${REMOTE ? `<button class="btn-ghost" id="offApi" style="flex:0 0 auto">공유 모드 끄기</button>` : ""}
+      </div>
+      <p class="hint" style="margin-top:10px">설정 방법은 저장소의 <b>README.md</b>와 <b>apps-script/Code.gs</b> 파일을 참고하세요.</p>
+    </section>
+
+    <section class="card">
+      <h2>이번 달 기록 초기화</h2>
+      <p class="hint">제출된 신청 ${subs.length}건과 배정 결과가 <b>모두 지워집니다.</b> 직업 목록과 설정은 그대로 남아요.
+        학생 기기의 ‘제출 완료’ 화면도 함께 풀려서 다시 신청할 수 있게 됩니다. 되돌릴 수 없으니 먼저 문서로 내려받아 두세요.</p>
+      <div class="row">
+        <button class="btn-ghost" id="dlBefore" style="flex:0 0 auto" ${subs.length?"":"disabled"}>먼저 문서로 내려받기</button>
+        <button class="btn-danger" id="resetAll" style="flex:0 0 auto">전체 초기화</button>
+      </div>
+    </section>`;
+
+  body.querySelector("#saveCfg").onclick = async () => {
+    const next = normalizeConfig(Object.assign({}, CFG, {
+      title: body.querySelector("#cTitle").value.trim() || "우리 반 직업 신청",
+      monthLabel: body.querySelector("#cMonth").value.trim(),
+      choiceCount: parseInt(body.querySelector("#cCount").value, 10) || 3,
+      pin: body.querySelector("#cPin").value.trim() || "1234"
+    }));
+    const newPin = next.pin;
+    await Store.saveConfig(pin, next);
+    CFG = next; paintHeader();
+    alert("저장했어요." + (newPin !== pin ? "\n새 비밀번호로 다시 로그인해 주세요." : ""));
+    if (newPin !== pin) renderTeacherLogin(); else refreshTeacher(pin, "settings");
+  };
+  body.querySelector("#copyLink").onclick = () => {
+    const el = body.querySelector("#shareLink"); el.select();
+    navigator.clipboard ? navigator.clipboard.writeText(el.value).then(()=>alert("복사했어요.")) : document.execCommand("copy");
+  };
+  body.querySelector("#saveApi").onclick = () => {
+    const url = body.querySelector("#apiUrl").value.trim();
+    if (!/^https:\/\/script\.google\.com\//.test(url)) return alert("Google Apps Script 웹 앱 주소를 입력해 주세요.");
+    localStorage.setItem(LS.api, url);
+    location.href = location.origin + location.pathname + "?api=" + encodeURIComponent(url);
+  };
+  const off = body.querySelector("#offApi");
+  if (off) off.onclick = () => {
+    if (!confirm("공유 모드를 끄고 이 기기 저장 모드로 돌아갈까요?")) return;
+    localStorage.removeItem(LS.api);
+    location.href = location.origin + location.pathname;
+  };
+  const dlb = body.querySelector("#dlBefore");
+  if (dlb) dlb.onclick = async () => {
+    const data = await Store.all(pin);
+    downloadDoc(subs, data.assignments || {});
+  };
+  body.querySelector("#resetAll").onclick = async () => {
+    if (!confirm("정말 모든 신청 기록을 지울까요? 되돌릴 수 없어요.")) return;
+    const typed = prompt('확인을 위해 "초기화" 라고 입력해 주세요.');
+    if (typed !== "초기화") return alert("초기화를 취소했어요.");
+    const next = normalizeConfig(Object.assign({}, CFG, { round: CFG.round + 1 }));
+    await Store.reset(pin, next);
+    CFG = next;
+    localStorage.removeItem(LS.lock);
+    alert("초기화했어요. 이제 새로 신청받을 수 있어요.");
+    refreshTeacher(pin, "submissions");
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ *  내려받기 (워드 문서 / CSV)
+ * ------------------------------------------------------------------ */
+function saveBlob(filename, blob){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+/**
+ * 파일 이름은 영문·숫자로 만듭니다. 한글 파일 이름을 그대로 쓰면 일부 브라우저가
+ * 이름을 버리고 확장자 없는 "download" 파일로 저장해 버려 문서가 열리지 않습니다.
+ * 문서 안의 제목은 한글 그대로 들어갑니다.
+ */
+function fileStem(){
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return "class-jobs_" + d.getFullYear() + "-" + p(d.getMonth()+1);
+}
+function downloadDoc(subs, asg){
+  const need = Math.min(CFG.choiceCount, CFG.jobs.length);
+  const rows = subs.slice().sort(byNumber).map(s => {
+    const cells = Array.from({length:need}, (_,i) => `<td>${esc(jobName(CFG,(s.choices||[])[i]))}</td>`).join("");
+    const a = asg[String(s.number)];
+    return `<tr><td align="center">${esc(s.number)}</td><td>${esc(s.name)}</td>${cells}<td><b>${a?esc(jobName(CFG,a)):"미배정"}</b></td></tr>`;
+  }).join("");
+  const byJob = CFG.jobs.map(j => {
+    const list = subs.filter(s => asg[String(s.number)] === j.id).sort(byNumber)
+                     .map(s => s.number + "번 " + s.name);
+    return `<tr><td><b>${esc(j.name)}</b></td><td align="center">${list.length}/${j.cap}</td><td>${esc(list.join(", ")) || "-"}</td></tr>`;
+  }).join("");
+  const elected = CFG.elected.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.winner) || "-"}</td></tr>`).join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(fileStem())}</title>
+    <style>
+      body{font-family:"Malgun Gothic","맑은 고딕",sans-serif; font-size:11pt}
+      h1{font-size:16pt; margin:0 0 4px} h2{font-size:12.5pt; margin:22px 0 6px}
+      p.sub{color:#555; margin:0 0 14px; font-size:10pt}
+      table{border-collapse:collapse; width:100%}
+      th,td{border:1px solid #999; padding:5px 7px; font-size:10.5pt}
+      th{background:#eef1f8}
+    </style></head><body>
+    <h1>${esc(CFG.title)}</h1>
+    <p class="sub">${esc(CFG.monthLabel || thisMonthLabel())} · 출력일 ${esc(nowStamp())} · 제출 ${subs.length}명</p>
+    <h2>1. 투표로 뽑은 임원</h2>
+    <table><tr><th width="140">직책</th><th>이름</th></tr>${elected}</table>
+    <h2>2. 번호순 신청·배정 결과</h2>
+    <table><tr><th width="52">번호</th><th width="90">이름</th>
+      ${Array.from({length:need},(_,i)=>`<th>${i+1}지망</th>`).join("")}<th>배정 직업</th></tr>${rows}</table>
+    <h2>3. 직업별 명단</h2>
+    <table><tr><th width="120">직업</th><th width="60">인원</th><th>학생</th></tr>${byJob}</table>
+    </body></html>`;
+  saveBlob(fileStem() + ".doc", new Blob(["﻿" + html], { type:"application/msword;charset=utf-8" }));
+}
+function downloadCsv(subs, asg){
+  const need = Math.min(CFG.choiceCount, CFG.jobs.length);
+  const q = v => `"${String(v==null?"":v).replace(/"/g,'""')}"`;
+  const head = ["번호","이름", ...Array.from({length:need},(_,i)=>(i+1)+"지망"), "배정 직업","제출 시각"];
+  const lines = [head.map(q).join(",")];
+  subs.slice().sort(byNumber).forEach(s => {
+    const a = asg[String(s.number)];
+    lines.push([s.number, s.name,
+      ...Array.from({length:need},(_,i)=>jobName(CFG,(s.choices||[])[i])),
+      a ? jobName(CFG,a) : "미배정", s.at || ""].map(q).join(","));
+  });
+  saveBlob(fileStem() + ".csv", new Blob(["﻿" + lines.join("\r\n")], { type:"text/csv;charset=utf-8" }));
+}
+
+/* ------------------------------------------------------------------ *
+ *  시작
+ * ------------------------------------------------------------------ */
+document.getElementById("teacherBtn").onclick = () => { paintHeader(); renderTeacherLogin(); };
+
+async function start(){
+  view.innerHTML = `<section class="card"><p class="hint" style="margin:0">불러오는 중…</p></section>`;
+  try{
+    CFG = await Store.publicConfig();
+  }catch(e){
+    view.innerHTML = `<section class="card"><div class="msg err">
+      설정을 불러오지 못했어요. 인터넷 연결을 확인하거나 선생님께 알려 주세요.<br>(${esc(e.message)})</div></section>`;
+    return;
+  }
+  paintHeader();
+  const lock = jread(LS.lock, null);
+  if (lock && lock.round === CFG.round) renderDone(lock);
+  else { picks = []; renderStudent(); }
+}
+start();
+</script>
+</body>
+</html>
