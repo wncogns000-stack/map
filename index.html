@@ -97,7 +97,6 @@
     .jobedit.j5>*:nth-child(3){grid-area:w} .jobedit.j5>*:nth-child(4){grid-area:t}
     .jobedit.j5>*:nth-child(5){grid-area:d}
   }
-  .elected{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px}
   .noprint{}
   @media print{ .noprint{display:none} body{background:#fff} .card{box-shadow:none} }
 </style>
@@ -120,21 +119,15 @@
 /* ------------------------------------------------------------------ *
  *  기본 설정값 (교사용 화면에서 언제든지 수정할 수 있습니다)
  * ------------------------------------------------------------------ */
-const OFFICER_DUTY =
-  "선생님 심부름, 교과실 인솔, 남학생 및 여학생 인원 파악, 직업활동 관리, " +
-  "학생 바른생활 관리(수업태도, 언어생활, 서랍정리, 청소 등 전체적인 학교생활 관리)";
+// 교사용 비밀번호 (고정)
+const TEACHER_PIN = "3051";
 
 const DEFAULT_CONFIG = {
   title: "양념반후라이드반 직업 신청",
   monthLabel: "",              // 비워두면 현재 연월이 자동으로 들어갑니다
-  pin: "1234",
+  pin: TEACHER_PIN,
   round: 1,                    // 초기화할 때마다 1씩 올라갑니다
   choiceCount: 3,
-  elected: [
-    { name: "회장",     desc: OFFICER_DUTY + " (투표로 뽑아요)", winner: "" },
-    { name: "남부회장", desc: OFFICER_DUTY + " (투표로 뽑아요)", winner: "" },
-    { name: "여부회장", desc: OFFICER_DUTY + " (투표로 뽑아요)", winner: "" }
-  ],
   // 하는 일과 인원은 2026. 6. 15. 표준근로계약서를 그대로 옮긴 것입니다.
   jobs: [
     { id:"j1",  name:"돌쇠",     cap:1, when:"수시",
@@ -253,12 +246,9 @@ function normalizeConfig(c){
     cap: Math.max(0, parseInt(j.cap,10) || 0),
     when: String(j.when||""), desc: String(j.desc||"")
   })).filter(j => j.name);
-  cfg.elected = (cfg.elected || []).map(e => ({
-    name: String(e.name||"").trim(), desc: String(e.desc||""), winner: String(e.winner||"")
-  })).filter(e => e.name);
   cfg.round = parseInt(cfg.round,10) || 1;
   cfg.choiceCount = Math.min(Math.max(1, parseInt(cfg.choiceCount,10) || 3), 5);
-  cfg.pin = String(cfg.pin || "1234");
+  cfg.pin = TEACHER_PIN;                                   // 저장된 값과 무관하게 고정
   return cfg;
 }
 function jobName(cfg, id){ const j = cfg.jobs.find(x => x.id === id); return j ? j.name : "—"; }
@@ -330,19 +320,7 @@ function renderStudent(msg){
     </section>
 
     <section class="card">
-      <h2>2. 투표로 뽑는 직업</h2>
-      <p class="hint">아래 직업은 신청이 아니라 <b>학급 선거 투표</b>로 뽑아요. 하는 일을 참고만 하세요.</p>
-      <div class="jobs">
-        ${CFG.elected.map(e => `
-          <div class="job" style="cursor:default; opacity:.92">
-            <div class="name">${esc(e.name)} <span class="tag gray">투표</span></div>
-            <div class="desc">${esc(e.desc)}</div>
-          </div>`).join("")}
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>3. 하고 싶은 직업 ${need}가지 고르기</h2>
+      <h2>2. 하고 싶은 직업 ${need}가지 고르기</h2>
       <p class="hint">누른 순서대로 1지망 → ${need}지망이 돼요. 다시 누르면 선택이 취소됩니다.
         신청자가 많으면 다른 지망으로 배정될 수 있어요.</p>
       <div class="picked-list">${slots.join("")}</div>
@@ -464,7 +442,7 @@ function renderTeacherLogin(err){
   view.innerHTML = `
     <section class="card">
       <h2>교사용 화면</h2>
-      <p class="hint">비밀번호를 입력하세요. (처음 비밀번호는 <b>1234</b>, 설정에서 바꿀 수 있어요)</p>
+      <p class="hint">선생님용 화면입니다. 비밀번호를 입력하세요.</p>
       ${err ? `<div class="msg err">${esc(err)}</div>` : ""}
       <label for="pin">비밀번호</label>
       <input id="pin" type="password" inputmode="numeric" autocomplete="current-password">
@@ -475,8 +453,7 @@ function renderTeacherLogin(err){
     </section>`;
   const go = async () => {
     const pin = view.querySelector("#pin").value.trim();
-    // 이 기기 저장 모드는 여기서, 공유 모드는 서버에서 비밀번호를 확인합니다.
-    if (!REMOTE && pin !== CFG.pin) return renderTeacherLogin("비밀번호가 맞지 않아요.");
+    if (pin !== TEACHER_PIN) return renderTeacherLogin("비밀번호가 맞지 않아요.");
     try{
       const data = await Store.all(pin);
       if (data.config) CFG = normalizeConfig(data.config);   // 교사에게만 비밀번호까지 전달
@@ -645,14 +622,6 @@ function tabJobs(body, pin){
       <textarea class="e-desc" placeholder="하는 일 설명">${esc(j.desc)}</textarea>
       <button class="btn-ghost btn-sm e-del" title="삭제">✕</button>
     </div>`).join("");
-  const elected = CFG.elected.map((e,i) => `
-    <div class="jobedit" data-ei="${i}">
-      <input type="text" class="x-name" value="${esc(e.name)}" placeholder="직책 이름">
-      <input type="text" class="x-win" value="${esc(e.winner)}" placeholder="당선자" title="당선자 이름">
-      <textarea class="x-desc" placeholder="하는 일 설명">${esc(e.desc)}</textarea>
-      <button class="btn-ghost btn-sm x-del" title="삭제">✕</button>
-    </div>`).join("");
-
   body.innerHTML = `
     <section class="card">
       <h2>신청하는 직업</h2>
@@ -660,14 +629,6 @@ function tabJobs(body, pin){
       <div id="jobRows">${rows}</div>
       <div class="row noprint" style="margin-top:8px">
         <button class="btn-ghost" id="addJob" style="flex:0 0 auto">+ 직업 추가</button>
-      </div>
-    </section>
-    <section class="card">
-      <h2>투표로 뽑는 직책</h2>
-      <p class="hint">학생은 신청할 수 없고 설명만 볼 수 있어요. 당선자 이름을 적어 두면 문서에도 함께 인쇄됩니다.</p>
-      <div id="elRows">${elected}</div>
-      <div class="row noprint" style="margin-top:8px">
-        <button class="btn-ghost" id="addEl" style="flex:0 0 auto">+ 직책 추가</button>
       </div>
     </section>
     <section class="card noprint">
@@ -683,41 +644,24 @@ function tabJobs(body, pin){
       when: r.querySelector(".e-when").value.trim(),
       desc: r.querySelector(".e-desc").value.trim()
     })).filter(j => j.name);
-    const el = Array.from(body.querySelectorAll("#elRows .jobedit")).map(r => ({
-      name: r.querySelector(".x-name").value.trim(),
-      winner: r.querySelector(".x-win").value.trim(),
-      desc: r.querySelector(".x-desc").value.trim()
-    })).filter(e => e.name);
-    return { jobs, elected: el };
+    return { jobs };
   };
   body.querySelector("#addJob").onclick = () => {
-    const { jobs, elected } = collect();
+    const { jobs } = collect();
     jobs.push({ id:"j"+Date.now(), name:"새 직업", cap:1, when:"", desc:"" });
-    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
-    tabJobs(body, pin);
-  };
-  body.querySelector("#addEl").onclick = () => {
-    const { jobs, elected } = collect();
-    elected.push({ name:"새 직책", winner:"", desc:"" });
-    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs }));
     tabJobs(body, pin);
   };
   body.querySelectorAll(".e-del").forEach(b => b.onclick = () => {
-    const { jobs, elected } = collect();
+    const { jobs } = collect();
     jobs.splice(Number(b.closest(".jobedit").dataset.i), 1);
-    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
-    tabJobs(body, pin);
-  });
-  body.querySelectorAll(".x-del").forEach(b => b.onclick = () => {
-    const { jobs, elected } = collect();
-    elected.splice(Number(b.closest(".jobedit").dataset.ei), 1);
-    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs }));
     tabJobs(body, pin);
   });
   body.querySelector("#saveJobs").onclick = async () => {
-    const { jobs, elected } = collect();
+    const { jobs } = collect();
     if (!jobs.length) return alert("직업을 1개 이상 남겨 주세요.");
-    CFG = normalizeConfig(Object.assign({}, CFG, { jobs, elected }));
+    CFG = normalizeConfig(Object.assign({}, CFG, { jobs }));
     await Store.saveConfig(pin, CFG);
     alert("저장했어요.");
     refreshTeacher(pin, "jobs");
@@ -733,12 +677,9 @@ function tabSettings(body, pin, subs){
       <input id="cTitle" type="text" value="${esc(CFG.title)}">
       <label for="cMonth">이번 달 표시 (비우면 자동)</label>
       <input id="cMonth" type="text" value="${esc(CFG.monthLabel)}" placeholder="${esc(thisMonthLabel())}">
-      <div class="row">
-        <div><label for="cCount">지망 개수</label>
-          <input id="cCount" type="number" min="1" max="5" value="${CFG.choiceCount}"></div>
-        <div><label for="cPin">교사 비밀번호</label>
-          <input id="cPin" type="text" value="${esc(CFG.pin)}"></div>
-      </div>
+      <label for="cCount">지망 개수</label>
+      <input id="cCount" type="number" min="1" max="5" value="${CFG.choiceCount}">
+      <p class="hint" style="margin:10px 0 0">교사용 비밀번호는 <b>${esc(TEACHER_PIN)}</b> 으로 고정되어 있어요.</p>
       <div class="row" style="margin-top:14px"><button class="btn" id="saveCfg">저장하기</button></div>
     </section>
 
@@ -774,14 +715,12 @@ function tabSettings(body, pin, subs){
     const next = normalizeConfig(Object.assign({}, CFG, {
       title: body.querySelector("#cTitle").value.trim() || "우리 반 직업 신청",
       monthLabel: body.querySelector("#cMonth").value.trim(),
-      choiceCount: parseInt(body.querySelector("#cCount").value, 10) || 3,
-      pin: body.querySelector("#cPin").value.trim() || "1234"
+      choiceCount: parseInt(body.querySelector("#cCount").value, 10) || 3
     }));
-    const newPin = next.pin;
     await Store.saveConfig(pin, next);
     CFG = next; paintHeader();
-    alert("저장했어요." + (newPin !== pin ? "\n새 비밀번호로 다시 로그인해 주세요." : ""));
-    if (newPin !== pin) renderTeacherLogin(); else refreshTeacher(pin, "settings");
+    alert("저장했어요.");
+    refreshTeacher(pin, "settings");
   };
   body.querySelector("#copyLink").onclick = () => {
     const el = body.querySelector("#shareLink"); el.select();
@@ -848,8 +787,6 @@ function downloadDoc(subs, asg){
     return `<tr><td><b>${esc(j.name)}</b></td><td align="center">${list.length}/${j.cap}</td>` +
            `<td>${esc(j.when) || "-"}</td><td>${esc(list.join(", ")) || "-"}</td></tr>`;
   }).join("");
-  const elected = CFG.elected.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.winner) || "-"}</td></tr>`).join("");
-
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(fileStem())}</title>
     <style>
       body{font-family:"Malgun Gothic","맑은 고딕",sans-serif; font-size:11pt}
@@ -861,12 +798,10 @@ function downloadDoc(subs, asg){
     </style></head><body>
     <h1>${esc(CFG.title)}</h1>
     <p class="sub">${esc(CFG.monthLabel || thisMonthLabel())} · 출력일 ${esc(nowStamp())} · 제출 ${subs.length}명</p>
-    <h2>1. 투표로 뽑은 임원</h2>
-    <table><tr><th width="140">직책</th><th>이름</th></tr>${elected}</table>
-    <h2>2. 번호순 신청·배정 결과</h2>
+    <h2>1. 번호순 신청·배정 결과</h2>
     <table><tr><th width="52">번호</th><th width="90">이름</th>
       ${Array.from({length:need},(_,i)=>`<th>${i+1}지망</th>`).join("")}<th>배정 직업</th></tr>${rows}</table>
-    <h2>3. 직업별 명단</h2>
+    <h2>2. 직업별 명단</h2>
     <table><tr><th width="110">직업</th><th width="56">인원</th><th width="130">횟수</th><th>학생</th></tr>${byJob}</table>
     </body></html>`;
   saveBlob(fileStem() + ".doc", new Blob(["﻿" + html], { type:"application/msword;charset=utf-8" }));

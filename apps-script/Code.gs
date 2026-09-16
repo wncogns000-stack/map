@@ -19,8 +19,11 @@
  * ▣ 안전 장치
  *  - 학생 쪽에서는 직업 목록과 "내가 이미 냈는지" 만 확인할 수 있습니다.
  *  - 신청 내용 전체 조회·초기화·설정 변경은 교사 비밀번호가 있어야 합니다.
- *  - 비밀번호는 웹앱의 [설정]에서 바꿀 수 있습니다. (기본값 1234)
+ *  - 비밀번호는 이 파일 맨 위의 TEACHER_PIN 값입니다. 바꾸려면 웹앱의
+ *    index.html 안 TEACHER_PIN 과 이 파일의 값을 똑같이 고쳐 주세요.
  */
+
+var TEACHER_PIN = '3051';     // 교사용 비밀번호 (웹앱과 같은 값이어야 합니다)
 
 var SHEET_SUBS = '신청';
 var SHEET_CONF = '설정';
@@ -118,9 +121,7 @@ function publicConfig_() {
 }
 
 function checkPin_(pin) {
-  var c = readConfig_();
-  var real = (c && c.pin) ? String(c.pin) : '1234';
-  return String(pin || '') === real;
+  return String(pin || '') === TEACHER_PIN;
 }
 
 /* ---------------- 신청 ---------------- */
